@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth-utils";
 import { anthropic } from "@/lib/claude";
 import { z } from "zod";
 
@@ -8,6 +9,9 @@ const PageChatSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  const { error: authError } = await requireAuth();
+  if (authError) return authError;
+
   try {
     const body = await req.json();
     const { message, context } = PageChatSchema.parse(body);

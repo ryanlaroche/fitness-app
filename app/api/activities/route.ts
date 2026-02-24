@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAuth } from "@/lib/auth-utils";
 import { z } from "zod";
 
 const ActivitySchema = z.object({
@@ -22,9 +23,17 @@ const BulkActivitiesSchema = z.object({
 });
 
 export async function GET() {
+  const { error, userId } = await requireAuth();
+  if (error) return error;
+
   try {
+    const profile = await prisma.userProfile.findUnique({
+      where: { userId: userId! },
+    });
+    if (!profile) return NextResponse.json([]);
+
     const activities = await prisma.activity.findMany({
-      where: { userProfileId: 1 },
+      where: { userProfileId: profile.id },
       orderBy: { id: "asc" },
     });
     return NextResponse.json(
@@ -43,15 +52,28 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const { error: authError, userId } = await requireAuth();
+  if (authError) return authError;
+
   try {
     const body = await req.json();
     const data = ActivitySchema.parse(body);
+
+    const profile = await prisma.userProfile.findUnique({
+      where: { userId: userId! },
+    });
+    if (!profile) {
+      return NextResponse.json(
+        { error: "No profile found" },
+        { status: 404 }
+      );
+    }
 
     const activity = await prisma.activity.create({
       data: {
         name: data.name,
         daysOfWeek: JSON.stringify(data.daysOfWeek),
-        userProfileId: 1,
+        userProfileId: profile.id,
       },
     });
 
@@ -76,25 +98,38 @@ export async function POST(req: NextRequest) {
 
 // Bulk-replace all activities (used by tool use)
 export async function PUT(req: NextRequest) {
+  const { error: authError, userId } = await requireAuth();
+  if (authError) return authError;
+
   try {
     const body = await req.json();
     const { activities } = BulkActivitiesSchema.parse(body);
 
+    const profile = await prisma.userProfile.findUnique({
+      where: { userId: userId! },
+    });
+    if (!profile) {
+      return NextResponse.json(
+        { error: "No profile found" },
+        { status: 404 }
+      );
+    }
+
     await prisma.$transaction([
-      prisma.activity.deleteMany({ where: { userProfileId: 1 } }),
+      prisma.activity.deleteMany({ where: { userProfileId: profile.id } }),
       ...activities.map((a) =>
         prisma.activity.create({
           data: {
             name: a.name,
             daysOfWeek: JSON.stringify(a.daysOfWeek),
-            userProfileId: 1,
+            userProfileId: profile.id,
           },
         })
       ),
     ]);
 
     const updated = await prisma.activity.findMany({
-      where: { userProfileId: 1 },
+      where: { userProfileId: profile.id },
       orderBy: { id: "asc" },
     });
 

@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAuth } from "@/lib/auth-utils";
 import { anthropic, buildChatSystemPrompt, FITNESS_TOOLS } from "@/lib/claude";
 import Anthropic from "@anthropic-ai/sdk";
 
 export async function GET() {
+  const { error, userId } = await requireAuth();
+  if (error) return error;
+
   try {
     const messages = await prisma.chatMessage.findMany({
+      where: { userId: userId! },
       orderBy: { createdAt: "asc" },
     });
     return NextResponse.json(messages);
@@ -18,18 +23,19 @@ export async function GET() {
   }
 }
 
-async function executeManageActivities(input: {
-  activities: { name: string; daysOfWeek: string[] }[];
-}): Promise<string> {
+async function executeManageActivities(
+  profileId: number,
+  input: { activities: { name: string; daysOfWeek: string[] }[] }
+): Promise<string> {
   const { activities } = input;
   await prisma.$transaction([
-    prisma.activity.deleteMany({ where: { userProfileId: 1 } }),
+    prisma.activity.deleteMany({ where: { userProfileId: profileId } }),
     ...activities.map((a) =>
       prisma.activity.create({
         data: {
           name: a.name,
           daysOfWeek: JSON.stringify(a.daysOfWeek),
-          userProfileId: 1,
+          userProfileId: profileId,
         },
       })
     ),
@@ -38,13 +44,13 @@ async function executeManageActivities(input: {
   return `Successfully updated activities: ${names || "cleared all activities"}.`;
 }
 
-async function executeUpdateEquipment(input: {
-  equipmentType: string;
-  equipmentItems: string[];
-}): Promise<string> {
+async function executeUpdateEquipment(
+  profileId: number,
+  input: { equipmentType: string; equipmentItems: string[] }
+): Promise<string> {
   const { equipmentType, equipmentItems } = input;
   await prisma.userProfile.update({
-    where: { id: 1 },
+    where: { id: profileId },
     data: {
       availableEquipment: equipmentType,
       equipmentItems: JSON.stringify(equipmentItems),
@@ -80,6 +86,9 @@ function buildToolSummary(
 }
 
 export async function POST(req: NextRequest) {
+  const { error: authError, userId } = await requireAuth();
+  if (authError) return authError;
+
   try {
     const { message } = await req.json();
     if (!message?.trim()) {
@@ -91,12 +100,13 @@ export async function POST(req: NextRequest) {
 
     const [profile, workoutPlan, mealPlan, history] = await Promise.all([
       prisma.userProfile.findUnique({
-        where: { id: 1 },
+        where: { userId: userId! },
         include: { activities: true },
       }),
-      prisma.workoutPlan.findFirst({ orderBy: { createdAt: "desc" } }),
-      prisma.mealPlan.findFirst({ orderBy: { createdAt: "desc" } }),
+      prisma.workoutPlan.findFirst({ where: { userId: userId! }, orderBy: { createdAt: "desc" } }),
+      prisma.mealPlan.findFirst({ where: { userId: userId! }, orderBy: { createdAt: "desc" } }),
       prisma.chatMessage.findMany({
+        where: { userId: userId! },
         orderBy: { createdAt: "asc" },
         take: 20,
       }),
@@ -110,7 +120,7 @@ export async function POST(req: NextRequest) {
     }
 
     await prisma.chatMessage.create({
-      data: { role: "user", content: message },
+      data: { userId: userId!, role: "user", content: message },
     });
 
     const systemPrompt = buildChatSystemPrompt(
@@ -184,12 +194,14 @@ export async function POST(req: NextRequest) {
                 try {
                   if (block.name === "manage_activities") {
                     resultText = await executeManageActivities(
+                      profile.id,
                       block.input as {
                         activities: { name: string; daysOfWeek: string[] }[];
                       }
                     );
                   } else if (block.name === "update_equipment") {
                     resultText = await executeUpdateEquipment(
+                      profile.id,
                       block.input as {
                         equipmentType: string;
                         equipmentItems: string[];
@@ -238,7 +250,7 @@ export async function POST(req: NextRequest) {
           // Save accumulated assistant text
           if (fullText) {
             await prisma.chatMessage.create({
-              data: { role: "assistant", content: fullText },
+              data: { userId: userId!, role: "assistant", content: fullText },
             });
           }
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAuth } from "@/lib/auth-utils";
 import { z } from "zod";
 
 const ActivityUpdateSchema = z.object({
@@ -23,11 +24,29 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { error: authError, userId } = await requireAuth();
+  if (authError) return authError;
+
   try {
     const { id } = await params;
     const activityId = parseInt(id);
     if (isNaN(activityId)) {
       return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+    }
+
+    // Verify activity belongs to user's profile
+    const profile = await prisma.userProfile.findUnique({
+      where: { userId: userId! },
+    });
+    if (!profile) {
+      return NextResponse.json({ error: "No profile found" }, { status: 404 });
+    }
+
+    const existing = await prisma.activity.findFirst({
+      where: { id: activityId, userProfileId: profile.id },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: "Activity not found" }, { status: 404 });
     }
 
     const body = await req.json();
@@ -66,11 +85,29 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { error: authError, userId } = await requireAuth();
+  if (authError) return authError;
+
   try {
     const { id } = await params;
     const activityId = parseInt(id);
     if (isNaN(activityId)) {
       return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+    }
+
+    // Verify activity belongs to user's profile
+    const profile = await prisma.userProfile.findUnique({
+      where: { userId: userId! },
+    });
+    if (!profile) {
+      return NextResponse.json({ error: "No profile found" }, { status: 404 });
+    }
+
+    const existing = await prisma.activity.findFirst({
+      where: { id: activityId, userProfileId: profile.id },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: "Activity not found" }, { status: 404 });
     }
 
     await prisma.activity.delete({ where: { id: activityId } });

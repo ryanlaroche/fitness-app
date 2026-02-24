@@ -115,7 +115,7 @@ Requirements:
 - For each exercise, format it as a **markdown table row** with a YouTube search link:
   | [Exercise Name](https://www.youtube.com/results?search_query=exercise+name+form) | Sets | Reps | Rest | Suggested Weight |
   Use the actual exercise name in the URL (replace spaces with +). Include a table header row.
-- Include warm-up and cool-down recommendations
+- Do NOT include any warm-up or cool-down section
 - Add progression notes for weeks 2-4
 - Include rest day recommendations
 - Format as clean markdown with clear headers for each day${activityNote}${weightTargetNote}${weightSuggestions}

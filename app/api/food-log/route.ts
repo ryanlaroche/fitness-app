@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAuth } from "@/lib/auth-utils";
 import { anthropic } from "@/lib/claude";
 import { z } from "zod";
 
@@ -9,6 +10,9 @@ const PostSchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
+  const { error, userId } = await requireAuth();
+  if (error) return error;
+
   try {
     const { searchParams } = new URL(req.url);
     const dateParam = searchParams.get("date");
@@ -29,7 +33,7 @@ export async function GET(req: NextRequest) {
     }
 
     const entries = await prisma.foodLog.findMany({
-      where: { date: { gte: startDate, lte: endDate } },
+      where: { userId: userId!, date: { gte: startDate, lte: endDate } },
       orderBy: { createdAt: "asc" },
     });
 
@@ -54,6 +58,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const { error: authError, userId } = await requireAuth();
+  if (authError) return authError;
+
   try {
     const body = await req.json();
     const { mealType, description } = PostSchema.parse(body);
@@ -110,6 +117,7 @@ export async function POST(req: NextRequest) {
 
     const entry = await prisma.foodLog.create({
       data: {
+        userId: userId!,
         mealType,
         description,
         caloriesEst,

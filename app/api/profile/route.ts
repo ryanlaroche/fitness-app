@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAuth } from "@/lib/auth-utils";
 import { z } from "zod";
 
 const ProfileSchema = z.object({
@@ -30,9 +31,12 @@ const ProfileSchema = z.object({
 });
 
 export async function GET() {
+  const { error, userId } = await requireAuth();
+  if (error) return error;
+
   try {
     const profile = await prisma.userProfile.findUnique({
-      where: { id: 1 },
+      where: { userId: userId! },
       include: { activities: true },
     });
     if (!profile) return NextResponse.json(null);
@@ -54,6 +58,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const { error: authError, userId } = await requireAuth();
+  if (authError) return authError;
+
   try {
     const body = await req.json();
     const data = ProfileSchema.parse(body);
@@ -61,11 +68,21 @@ export async function POST(req: NextRequest) {
     const equipmentItemsJson = JSON.stringify(data.equipmentItems ?? []);
     const { equipmentItems: _items, ...rest } = data;
 
-    const profile = await prisma.userProfile.upsert({
-      where: { id: 1 },
-      update: { ...rest, equipmentItems: equipmentItemsJson },
-      create: { id: 1, ...rest, equipmentItems: equipmentItemsJson },
+    const existing = await prisma.userProfile.findUnique({
+      where: { userId: userId! },
     });
+
+    let profile;
+    if (existing) {
+      profile = await prisma.userProfile.update({
+        where: { userId: userId! },
+        data: { ...rest, equipmentItems: equipmentItemsJson },
+      });
+    } else {
+      profile = await prisma.userProfile.create({
+        data: { userId: userId!, ...rest, equipmentItems: equipmentItemsJson },
+      });
+    }
 
     return NextResponse.json({
       ...profile,

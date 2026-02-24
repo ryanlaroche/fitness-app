@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAuth } from "@/lib/auth-utils";
 import { z } from "zod";
 
 const ProgressSchema = z.object({
@@ -14,8 +15,12 @@ const ProgressSchema = z.object({
 });
 
 export async function GET() {
+  const { error, userId } = await requireAuth();
+  if (error) return error;
+
   try {
     const logs = await prisma.progressLog.findMany({
+      where: { userId: userId! },
       orderBy: { date: "asc" },
     });
     return NextResponse.json(logs);
@@ -29,11 +34,16 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const { error: authError, userId } = await requireAuth();
+  if (authError) return authError;
+
   try {
     const body = await req.json();
     const data = ProgressSchema.parse(body);
 
-    const log = await prisma.progressLog.create({ data });
+    const log = await prisma.progressLog.create({
+      data: { ...data, userId: userId! },
+    });
     return NextResponse.json(log, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {

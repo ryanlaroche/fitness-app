@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
+import { auth } from "@/lib/auth";
 import { WeightChart } from "@/components/dashboard/weight-chart";
 import { StatsCard } from "@/components/dashboard/stats-card";
 import { Scale, Flame, Trophy, MessageSquare, Dumbbell, ArrowUpRight, UtensilsCrossed } from "lucide-react";
@@ -8,6 +9,10 @@ import { Scale, Flame, Trophy, MessageSquare, Dumbbell, ArrowUpRight, UtensilsCr
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
+  const session = await auth();
+  if (!session?.user?.id) redirect("/login");
+  const userId = session.user.id;
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const todayEnd = new Date();
@@ -17,10 +22,10 @@ export default async function DashboardPage() {
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
   const [profile, progressLogs, workoutPlan, todayFoodLogs] = await Promise.all([
-    prisma.userProfile.findUnique({ where: { id: 1 } }),
-    prisma.progressLog.findMany({ orderBy: { date: "asc" } }),
-    prisma.workoutPlan.findFirst({ orderBy: { createdAt: "desc" } }),
-    prisma.foodLog.findMany({ where: { date: { gte: today, lte: todayEnd } } }),
+    prisma.userProfile.findUnique({ where: { userId } }),
+    prisma.progressLog.findMany({ where: { userId }, orderBy: { date: "asc" } }),
+    prisma.workoutPlan.findFirst({ where: { userId }, orderBy: { createdAt: "desc" } }),
+    prisma.foodLog.findMany({ where: { userId, date: { gte: today, lte: todayEnd } } }),
   ]);
 
   if (!profile) {
@@ -84,7 +89,7 @@ export default async function DashboardPage() {
       <div className="mb-10">
         <p className="text-xs font-medium text-[#555] uppercase tracking-widest mb-2">Dashboard</p>
         <h1 className="text-3xl font-bold text-white tracking-tight">
-          Welcome back
+          Welcome back{session.user.name ? `, ${session.user.name}` : ""}
         </h1>
         <p className="text-[#666] mt-1 text-sm">
           Here&apos;s your fitness overview.

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAuth } from "@/lib/auth-utils";
 import {
   anthropic,
   buildWorkoutSystemPrompt,
@@ -7,9 +8,12 @@ import {
 } from "@/lib/claude";
 
 export async function POST() {
+  const { error, userId } = await requireAuth();
+  if (error) return error;
+
   try {
     const profile = await prisma.userProfile.findUnique({
-      where: { id: 1 },
+      where: { userId: userId! },
       include: { activities: true },
     });
     if (!profile) {
@@ -30,7 +34,7 @@ export async function POST() {
       response.content[0].type === "text" ? response.content[0].text : "";
 
     const workoutPlan = await prisma.workoutPlan.create({
-      data: { content },
+      data: { userId: userId!, content },
     });
 
     return NextResponse.json({ content: workoutPlan.content, id: workoutPlan.id });
