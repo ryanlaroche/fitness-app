@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ShoppingCart, RotateCcw } from "lucide-react";
+import { ShoppingCart, RotateCcw, RefreshCw, Loader2 } from "lucide-react";
 
 interface ShoppingListCardProps {
   mealPlanContent: string;
+  onRegenerate?: () => Promise<void>;
 }
 
 function parseShoppingList(content: string): { category: string; items: string[] }[] {
@@ -47,9 +48,10 @@ function parseShoppingList(content: string): { category: string; items: string[]
 
 const STORAGE_KEY = "shopping-list-checked";
 
-export function ShoppingListCard({ mealPlanContent }: ShoppingListCardProps) {
+export function ShoppingListCard({ mealPlanContent, onRegenerate }: ShoppingListCardProps) {
   const categories = parseShoppingList(mealPlanContent);
   const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [regenerating, setRegenerating] = useState(false);
 
   useEffect(() => {
     try {
@@ -80,7 +82,32 @@ export function ShoppingListCard({ mealPlanContent }: ShoppingListCardProps) {
   };
 
   if (categories.length === 0) {
-    return null;
+    return (
+      <div className="bg-[#111] border border-dashed border-[#2a2a2a] rounded-2xl p-6">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-8 h-8 bg-orange-500/10 rounded-lg flex items-center justify-center">
+            <ShoppingCart className="h-4 w-4 text-orange-400" />
+          </div>
+          <h2 className="text-base font-semibold text-white">Weekly Shopping List</h2>
+        </div>
+        <p className="text-sm text-[#555] mb-4">
+          Your current meal plan doesn&apos;t include a shopping list. Regenerate your meal plan to get one.
+        </p>
+        {onRegenerate && (
+          <button
+            onClick={async () => {
+              setRegenerating(true);
+              try { await onRegenerate(); } finally { setRegenerating(false); }
+            }}
+            disabled={regenerating}
+            className="flex items-center gap-2 px-4 py-2 bg-[#00d4ff] text-black font-semibold text-sm rounded-lg hover:bg-[#33dcff] disabled:opacity-50 transition-colors"
+          >
+            {regenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            {regenerating ? "Regenerating..." : "Regenerate Meal Plan"}
+          </button>
+        )}
+      </div>
+    );
   }
 
   const totalItems = categories.reduce((acc, c) => acc + c.items.length, 0);

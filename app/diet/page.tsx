@@ -98,7 +98,7 @@ export default function DietPage() {
       {mealPlan ? (
         <div className="space-y-6">
           <MealPlanCard content={mealPlan.content} onRegenerate={regenerateMeal} />
-          <ShoppingListCard mealPlanContent={mealPlan.content} />
+          <ShoppingListCard mealPlanContent={mealPlan.content} onRegenerate={regenerateMeal} />
         </div>
       ) : (
         <div className="bg-[#111] border border-dashed border-[#2a2a2a] rounded-2xl p-8 text-center">
