@@ -57,8 +57,12 @@ export function buildFitnessSystemPrompt(
 - Fitness Level: ${profile.fitnessLevel}
 - Primary Goal: ${profile.primaryGoal.replace(/_/g, " ")}
 - Workout Days Per Week: ${profile.weeklyWorkoutDays}
+- Total Active Days Per Week: ${profile.weeklyActiveDays || profile.weeklyWorkoutDays} (includes gym, sports, walking)
+- Daily Step Target: ${profile.dailyStepTarget || "not set"}
 ${buildEquipmentSection(profile)}
 - Dietary Preferences: ${profile.dietaryPreferences.replace(/_/g, " ")}
+- Prefers Leftovers for Lunch: ${profile.prefersLeftovers ? "Yes" : "No"}
+${profile.dietNotes ? `- Diet Notes (allergies, cuisine preferences, dislikes): ${profile.dietNotes}` : ""}
 ${profile.healthNotes ? `- Health Notes / Injuries: ${profile.healthNotes}` : ""}
 ${weightTarget}
 ${activitiesSection}
@@ -107,6 +111,20 @@ export function buildWorkoutUserPrompt(
         ? `\n- For suggested starting weights, use moderate loads appropriate for intermediate lifters (${profile.weightKg} kg bodyweight) — typically 60–75% of estimated 1RM.`
         : `\n- For suggested starting weights, suggest percentages of estimated 1RM appropriate for advanced lifters.`;
 
+  const activeDays = profile.weeklyActiveDays || profile.weeklyWorkoutDays;
+  let overtrainingNote = "";
+  if (activeDays >= 7) {
+    overtrainingNote = `\n- **OVERTRAINING RISK (7 active days)**: You MUST include at least one active recovery day (light stretching, yoga, or easy walk only — no resistance training). Reduce one gym day to active recovery. Prioritize sleep and recovery.`;
+  } else if (activeDays >= 6 && profile.weeklyWorkoutDays >= 5) {
+    overtrainingNote = `\n- **High training load (${activeDays} active days, ${profile.weeklyWorkoutDays} gym days)**: Include deload recommendations — at least one lighter session per week (60-70% intensity). Monitor fatigue and suggest backing off if recovery is poor.`;
+  } else if (activeDays >= 6) {
+    overtrainingNote = `\n- **${activeDays} active days**: Place gym sessions strategically to allow adequate recovery between intense sessions. Avoid back-to-back heavy days.`;
+  }
+
+  const stepTargetNote = (profile.dailyStepTarget || 0) >= 10000
+    ? `\n- Daily step target: ${profile.dailyStepTarget} steps — suggest walking on rest days to hit this target. Do NOT pile additional cardio on top of high step counts.`
+    : "";
+
   return `Please create a detailed ${profile.weeklyWorkoutDays}-day weekly workout plan for me.
 
 Requirements:
@@ -118,7 +136,7 @@ Requirements:
 - Do NOT include any warm-up or cool-down section
 - Add progression notes for weeks 2-4
 - Include rest day recommendations
-- Format as clean markdown with clear headers for each day${activityNote}${weightTargetNote}${weightSuggestions}
+- Format as clean markdown with clear headers for each day${activityNote}${weightTargetNote}${weightSuggestions}${overtrainingNote}${stepTargetNote}
 
 Make it specific, achievable, and progressive.`;
 }
@@ -137,14 +155,16 @@ export function buildMealPlanUserPrompt(
         5 * profile.age -
         161;
 
+  const activeDays = profile.weeklyActiveDays || profile.weeklyWorkoutDays;
   const activityMultiplier =
-    profile.weeklyWorkoutDays <= 2
+    activeDays <= 2
       ? 1.375
-      : profile.weeklyWorkoutDays <= 4
+      : activeDays <= 4
         ? 1.55
         : 1.725;
 
-  let tdee = Math.round(bmr * activityMultiplier);
+  const stepBonus = Math.round(Math.max(0, (profile.dailyStepTarget || 0) - 5000) * 0.04);
+  let tdee = Math.round(bmr * activityMultiplier) + stepBonus;
 
   let caloricAdjustment = "";
   if (profile.weeklyWeightLossKg) {
@@ -159,15 +179,23 @@ export function buildMealPlanUserPrompt(
   const highCarbG = Math.round(highCarbCalories / 4);
   const lowCarbG = Math.round(lowCarbCalories / 4);
 
+  const stepNote = stepBonus > 0
+    ? `\n- My daily step target of ${profile.dailyStepTarget} adds ~${stepBonus} kcal/day to TDEE`
+    : "";
+
+  const leftoverNote = profile.prefersLeftovers
+    ? `\n- **Leftover strategy**: dinner recipes should make 2 servings — the next day's lunch should be "Leftover [dinner name]" with the same macros. This saves prep time and reduces waste.`
+    : "";
+
   return `Please create a detailed 7-day meal plan for me.
 
 My estimated daily calorie needs: ~${tdee} calories/day
-${caloricAdjustment}
+${caloricAdjustment}${stepNote}
 
 Requirements:
-- Respect my dietary preference: ${profile.dietaryPreferences.replace(/_/g, " ")}
+- Respect my dietary preference: ${profile.dietaryPreferences.replace(/_/g, " ")}${profile.dietNotes ? `\n- **Additional diet notes**: ${profile.dietNotes} — incorporate these preferences, allergies, and cuisine styles into the meal plan` : ""}
 - Align with my goal: ${profile.primaryGoal.replace(/_/g, " ")}
-- **High protein**: target ${proteinTarget}g protein/day (1.8–2.2g per kg bodyweight at ${profile.weightKg} kg)
+- **High protein**: target ${proteinTarget}g protein/day (1.8–2.2g per kg bodyweight at ${profile.weightKg} kg)${leftoverNote}
 - **Carb cycling**:
   - Workout days: HIGH carb (~${highCarbG}g carbs, ~${highCarbCalories} kcal from carbs = ~40% of calories)
   - Rest/activity days: LOW carb (~${lowCarbG}g carbs, ~${lowCarbCalories} kcal from carbs = ~20% of calories)

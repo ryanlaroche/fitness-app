@@ -37,9 +37,13 @@ model UserProfile {
   fitnessLevel       String
   primaryGoal        String
   weeklyWorkoutDays  Int
+  weeklyActiveDays   Int      @default(0)
+  dailyStepTarget    Int      @default(0)
   availableEquipment String
   equipmentItems     String     @default("[]")
   dietaryPreferences String
+  prefersLeftovers   Boolean  @default(false)
+  dietNotes          String?
   healthNotes        String?
   weightTargetKg     Float?
   weeklyWeightLossKg Float?

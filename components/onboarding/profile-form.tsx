@@ -13,9 +13,13 @@ type FormData = {
   fitnessLevel: string;
   primaryGoal: string;
   weeklyWorkoutDays: string;
+  weeklyActiveDays: string;
+  dailyStepTarget: string;
   availableEquipment: string;
   equipmentItems: string[];
   dietaryPreferences: string;
+  dietNotes: string;
+  prefersLeftovers: boolean;
   healthNotes: string;
   hasWeightTarget: boolean;
   weightTargetKg: string;
@@ -30,9 +34,13 @@ const initialData: FormData = {
   fitnessLevel: "beginner",
   primaryGoal: "weight_loss",
   weeklyWorkoutDays: "3",
+  weeklyActiveDays: "3",
+  dailyStepTarget: "",
   availableEquipment: "none",
   equipmentItems: [],
   dietaryPreferences: "none",
+  dietNotes: "",
+  prefersLeftovers: false,
   healthNotes: "",
   hasWeightTarget: false,
   weightTargetKg: "",
@@ -104,9 +112,13 @@ export function ProfileForm() {
           fitnessLevel: data.fitnessLevel,
           primaryGoal: data.primaryGoal,
           weeklyWorkoutDays: parseInt(data.weeklyWorkoutDays),
+          weeklyActiveDays: parseInt(data.weeklyActiveDays),
+          dailyStepTarget: data.dailyStepTarget ? parseInt(data.dailyStepTarget) : 0,
           availableEquipment: data.availableEquipment,
           equipmentItems: data.availableEquipment === "none" ? [] : data.equipmentItems,
           dietaryPreferences: data.dietaryPreferences,
+          dietNotes: data.dietNotes || null,
+          prefersLeftovers: data.prefersLeftovers,
           healthNotes: data.healthNotes || null,
           weightTargetKg: data.hasWeightTarget && data.weightTargetKg
             ? parseFloat(data.weightTargetKg)
@@ -259,12 +271,42 @@ export function ProfileForm() {
             <div>
               <label className={labelClass}>Workout Days Per Week</label>
               <select className={selectClass} value={data.weeklyWorkoutDays}
-                onChange={(e) => update("weeklyWorkoutDays", e.target.value)}>
+                onChange={(e) => {
+                  const val = e.target.value;
+                  update("weeklyWorkoutDays", val);
+                  if (parseInt(val) > parseInt(data.weeklyActiveDays)) {
+                    update("weeklyActiveDays", val);
+                  }
+                }}>
                 {[1, 2, 3, 4, 5, 6, 7].map((d) => (
                   <option key={d} value={d}>{d} day{d > 1 ? "s" : ""} per week</option>
                 ))}
               </select>
             </div>
+            <div>
+              <label className={labelClass}>Total Active Days Per Week</label>
+              <select className={selectClass} value={data.weeklyActiveDays}
+                onChange={(e) => update("weeklyActiveDays", e.target.value)}>
+                {[1, 2, 3, 4, 5, 6, 7].map((d) => (
+                  <option key={d} value={d} disabled={d < parseInt(data.weeklyWorkoutDays)}>{d} day{d > 1 ? "s" : ""} per week</option>
+                ))}
+              </select>
+              <p className="text-[10px] text-[#444] mt-1.5">Includes gym, sports, walking — must be ≥ workout days</p>
+            </div>
+            <div>
+              <label className={labelClass}>Daily Step Target</label>
+              <input type="number" className={inputClass} value={data.dailyStepTarget}
+                onChange={(e) => update("dailyStepTarget", e.target.value)}
+                placeholder="8000" min="0" max="100000" />
+              <p className="text-[10px] text-[#444] mt-1.5">Steps above 5,000 add to your calorie estimate</p>
+            </div>
+            {parseInt(data.weeklyActiveDays) >= 6 && (
+              <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-3 text-xs text-amber-400">
+                {parseInt(data.weeklyActiveDays) >= 7
+                  ? "⚠ 7 active days — your plan will include a mandatory active recovery day to prevent overtraining."
+                  : "⚠ 6 active days is a high training load. Your plan will include strategic recovery recommendations."}
+              </div>
+            )}
             <div>
               <label className={labelClass}>Available Equipment</label>
               <select className={selectClass} value={data.availableEquipment}
@@ -330,6 +372,41 @@ export function ProfileForm() {
                 <option value="gluten_free">Gluten-Free</option>
               </select>
             </div>
+            <div>
+              <label className={labelClass}>
+                Diet Notes <span className="normal-case text-[#444] font-normal">(optional — helps tailor your meal plan)</span>
+              </label>
+              <textarea
+                className={`${inputClass} min-h-[80px] resize-none`}
+                value={data.dietNotes}
+                onChange={(e) => update("dietNotes", e.target.value)}
+                placeholder="E.g., allergic to shellfish, love Asian food, hate broccoli, prefer quick meals under 30 min..."
+              />
+              <p className="text-[10px] text-[#444] mt-1.5">
+                Mention allergies, favorite cuisines, foods you dislike, or cooking preferences
+              </p>
+            </div>
+            {/* Leftover Preference Toggle */}
+            <div>
+              <button
+                type="button"
+                onClick={() => update("prefersLeftovers", !data.prefersLeftovers)}
+                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl border transition-all text-sm ${
+                  data.prefersLeftovers
+                    ? "border-[#00d4ff]/40 bg-[#00d4ff]/5 text-[#00d4ff]"
+                    : "border-[#2a2a2a] text-[#555] hover:border-[#333] hover:text-[#999]"
+                }`}
+              >
+                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                  data.prefersLeftovers ? "border-[#00d4ff] bg-[#00d4ff]" : "border-[#444]"
+                }`}>
+                  {data.prefersLeftovers && <Check className="h-3 w-3 text-black" />}
+                </div>
+                <span className="font-medium">Use dinner leftovers for next day&apos;s lunch</span>
+              </button>
+              <p className="text-[10px] text-[#444] mt-1.5 ml-1">Dinners will make 2 servings — saves prep time</p>
+            </div>
+
             <div>
               <label className={labelClass}>
                 Health Notes <span className="normal-case text-[#444] font-normal">(injuries, conditions — optional)</span>

@@ -16,6 +16,8 @@ const ProfileSchema = z.object({
     "endurance",
   ]),
   weeklyWorkoutDays: z.number().int().min(1).max(7),
+  weeklyActiveDays: z.number().int().min(0).max(7).optional(),
+  dailyStepTarget: z.number().int().min(0).max(100000).optional(),
   availableEquipment: z.enum(["none", "dumbbells", "gym", "home_gym"]),
   equipmentItems: z.array(z.string()).optional(),
   dietaryPreferences: z.enum([
@@ -25,6 +27,8 @@ const ProfileSchema = z.object({
     "keto",
     "gluten_free",
   ]),
+  prefersLeftovers: z.boolean().optional(),
+  dietNotes: z.string().optional().nullable(),
   healthNotes: z.string().optional().nullable(),
   weightTargetKg: z.number().positive().optional().nullable(),
   weeklyWeightLossKg: z.number().positive().optional().nullable(),
