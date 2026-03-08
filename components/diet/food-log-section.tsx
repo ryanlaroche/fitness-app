@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Loader2, Plus, Utensils, Camera } from "lucide-react";
+import { Loader2, Plus, Utensils, Camera, ChevronLeft, ChevronRight } from "lucide-react";
 
 type FoodEntry = {
   id: number;
@@ -43,6 +43,7 @@ function MacroBar({ label, value, target, color }: { label: string; value: numbe
 }
 
 export function FoodLogSection() {
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [entries, setEntries] = useState<FoodEntry[]>([]);
   const [totals, setTotals] = useState<DailyTotals>({ calories: 0, protein: 0, carbs: 0, fat: 0 });
   const [loading, setLoading] = useState(true);
@@ -52,9 +53,10 @@ export function FoodLogSection() {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const fetchToday = useCallback(async () => {
+  const fetchEntries = useCallback(async (date: string) => {
+    setLoading(true);
     try {
-      const res = await fetch("/api/food-log?date=today");
+      const res = await fetch(`/api/food-log?date=${date}`);
       const data = await res.json();
       setEntries(data.entries ?? []);
       setTotals(data.totals ?? { calories: 0, protein: 0, carbs: 0, fat: 0 });
@@ -65,7 +67,7 @@ export function FoodLogSection() {
     }
   }, []);
 
-  useEffect(() => { fetchToday(); }, [fetchToday]);
+  useEffect(() => { fetchEntries(selectedDate); }, [selectedDate, fetchEntries]);
 
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -92,17 +94,18 @@ export function FoodLogSection() {
         const formData = new FormData();
         formData.append("mealType", form.mealType);
         formData.append("description", form.description || "Photo of food");
+        formData.append("date", selectedDate);
         formData.append("photo", photoFile);
         res = await fetch("/api/food-log", { method: "POST", body: formData });
       } else {
         res = await fetch("/api/food-log", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
+          body: JSON.stringify({ ...form, date: selectedDate }),
         });
       }
       if (!res.ok) throw new Error("Failed to add");
-      await fetchToday();
+      await fetchEntries(selectedDate);
       setForm((f) => ({ ...f, description: "" }));
       clearPhoto();
     } catch (err) {
@@ -119,11 +122,56 @@ export function FoodLogSection() {
 
   return (
     <div className="bg-[#111] border border-[#222] rounded-2xl overflow-hidden">
-      <div className="px-6 py-4 border-b border-[#1f1f1f] flex items-center gap-3">
-        <div className="w-8 h-8 bg-[#00d4ff]/10 rounded-lg flex items-center justify-center">
-          <Utensils className="h-4 w-4 text-[#00d4ff]" />
+      <div className="px-6 py-4 border-b border-[#1f1f1f] flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-[#00d4ff]/10 rounded-lg flex items-center justify-center">
+            <Utensils className="h-4 w-4 text-[#00d4ff]" />
+          </div>
+          <h2 className="text-base font-semibold text-white">Food Log</h2>
         </div>
-        <h2 className="text-base font-semibold text-white">Today&apos;s Food Log</h2>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              const d = new Date(selectedDate);
+              d.setDate(d.getDate() - 1);
+              setSelectedDate(d.toISOString().split("T")[0]);
+            }}
+            className="p-1 text-[#555] hover:text-white transition-colors"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <input
+            type="date"
+            value={selectedDate}
+            max={new Date().toISOString().split("T")[0]}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="px-2.5 py-1.5 bg-[#1a1a1a] border border-[#333] rounded-lg text-sm text-white focus:outline-none focus:border-[#00d4ff] transition-colors [color-scheme:dark]"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              const d = new Date(selectedDate);
+              d.setDate(d.getDate() + 1);
+              const today = new Date().toISOString().split("T")[0];
+              const next = d.toISOString().split("T")[0];
+              if (next <= today) setSelectedDate(next);
+            }}
+            disabled={selectedDate >= new Date().toISOString().split("T")[0]}
+            className="p-1 text-[#555] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+          {selectedDate !== new Date().toISOString().split("T")[0] && (
+            <button
+              type="button"
+              onClick={() => setSelectedDate(new Date().toISOString().split("T")[0])}
+              className="text-xs text-[#00d4ff] hover:text-[#33dcff] transition-colors ml-1"
+            >
+              Today
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Macro progress bars */}

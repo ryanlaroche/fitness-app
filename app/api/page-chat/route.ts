@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth-utils";
-import { anthropic } from "@/lib/claude";
+import { anthropic, COACH_PERSONAS } from "@/lib/claude";
 import { z } from "zod";
 import { rateLimit } from "@/lib/rate-limit";
 
@@ -25,7 +26,9 @@ export async function POST(req: NextRequest) {
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          const systemPrompt = `You are a fitness assistant. The user is viewing: ${context}. Help them refine or understand this content. Be concise and practical.`;
+          const profile = await prisma.userProfile.findUnique({ where: { userId: userId! }, select: { coachPersona: true } });
+          const persona = COACH_PERSONAS[profile?.coachPersona ?? "balanced"] ?? COACH_PERSONAS.balanced;
+          const systemPrompt = `${persona.prompt}\n\nYou are a fitness assistant. The user is viewing: ${context}. Help them refine or understand this content. Be concise and practical.`;
 
           const response = await anthropic.messages.create({
             model: "claude-opus-4-6",

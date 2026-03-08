@@ -4,6 +4,7 @@ import { requireAuth } from "@/lib/auth-utils";
 import { z } from "zod";
 
 const ProgressSchema = z.object({
+  date: z.string().optional().nullable(),
   weightKg: z.number().positive().optional().nullable(),
   notes: z.string().optional().nullable(),
   workoutDone: z.boolean().optional(),
@@ -41,8 +42,13 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const data = ProgressSchema.parse(body);
 
+    const { date: dateStr, ...rest } = data;
     const log = await prisma.progressLog.create({
-      data: { ...data, userId: userId! },
+      data: {
+        ...rest,
+        userId: userId!,
+        ...(dateStr ? { date: new Date(dateStr) } : {}),
+      },
     });
     return NextResponse.json(log, { status: 201 });
   } catch (error) {

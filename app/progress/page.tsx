@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { WeightChart } from "@/components/dashboard/weight-chart";
 import { GamificationBar } from "@/components/progress/gamification-bar";
 import { OneRmDisplay } from "@/components/progress/one-rm-display";
-import { CheckCircle, Circle, Loader2, Plus, X } from "lucide-react";
+import { CheckCircle, Circle, Loader2, Plus, X, ChevronLeft, ChevronRight } from "lucide-react";
 
 type LiftEntry = {
   exercise: string;
@@ -30,6 +30,7 @@ export default function ProgressPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [logDate, setLogDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [form, setForm] = useState({
     weightKg: "",
     notes: "",
@@ -81,6 +82,7 @@ export default function ProgressPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          date: logDate,
           weightKg: form.weightKg ? parseFloat(form.weightKg) : null,
           notes: form.notes || null,
           workoutDone: form.workoutDone,
@@ -143,7 +145,52 @@ export default function ProgressPage() {
 
       {/* Log Form */}
       <div className="bg-[#111] border border-[#222] rounded-2xl p-6 mb-6 mt-6">
-        <h2 className="text-sm font-semibold text-white mb-5">Log Today&apos;s Entry</h2>
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-sm font-semibold text-white">Log Entry</h2>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const d = new Date(logDate);
+                d.setDate(d.getDate() - 1);
+                setLogDate(d.toISOString().split("T")[0]);
+              }}
+              className="p-1 text-[#555] hover:text-white transition-colors"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <input
+              type="date"
+              value={logDate}
+              max={new Date().toISOString().split("T")[0]}
+              onChange={(e) => setLogDate(e.target.value)}
+              className="px-2.5 py-1.5 bg-[#1a1a1a] border border-[#333] rounded-lg text-sm text-white focus:outline-none focus:border-[#00d4ff] transition-colors [color-scheme:dark]"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const d = new Date(logDate);
+                d.setDate(d.getDate() + 1);
+                const today = new Date().toISOString().split("T")[0];
+                const next = d.toISOString().split("T")[0];
+                if (next <= today) setLogDate(next);
+              }}
+              disabled={logDate >= new Date().toISOString().split("T")[0]}
+              className="p-1 text-[#555] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+            {logDate !== new Date().toISOString().split("T")[0] && (
+              <button
+                type="button"
+                onClick={() => setLogDate(new Date().toISOString().split("T")[0])}
+                className="text-xs text-[#00d4ff] hover:text-[#33dcff] transition-colors ml-1"
+              >
+                Today
+              </button>
+            )}
+          </div>
+        </div>
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Weight & Notes */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

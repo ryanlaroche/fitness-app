@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronRight, ChevronLeft, Loader2, Check, Plus, X } from "lucide-react";
-import { ALL_DAYS, DayOfWeek, ActivityInput, EQUIPMENT_OPTIONS } from "@/lib/types";
+import { ALL_DAYS, DayOfWeek, ActivityInput, EQUIPMENT_OPTIONS, COACH_PERSONA_OPTIONS, WORKOUT_DURATION_OPTIONS } from "@/lib/types";
 
 type FormData = {
   age: string;
@@ -23,6 +23,8 @@ type FormData = {
   healthNotes: string;
   wantsWorkouts: boolean;
   wantsDiet: boolean;
+  coachPersona: string;
+  workoutDurationMin: string;
   hasWeightTarget: boolean;
   weightTargetKg: string;
   weeklyWeightLossKg: string;
@@ -45,6 +47,8 @@ const initialData: FormData = {
   prefersLeftovers: false,
   wantsWorkouts: true,
   wantsDiet: true,
+  coachPersona: "balanced",
+  workoutDurationMin: "60",
   healthNotes: "",
   hasWeightTarget: false,
   weightTargetKg: "",
@@ -127,6 +131,8 @@ export function ProfileForm() {
           prefersLeftovers: data.prefersLeftovers,
           wantsWorkouts: data.wantsWorkouts,
           wantsDiet: data.wantsDiet,
+          coachPersona: data.coachPersona,
+          workoutDurationMin: parseInt(data.workoutDurationMin),
           healthNotes: data.healthNotes || null,
           weightTargetKg: data.hasWeightTarget && data.weightTargetKg
             ? parseFloat(data.weightTargetKg)
@@ -298,6 +304,36 @@ export function ProfileForm() {
               <p className="text-[10px] text-[#444] mt-1.5">Select at least one. You can change this later in your profile.</p>
             </div>
 
+            {/* Coach Persona */}
+            <div>
+              <label className={labelClass}>Coach Personality</label>
+              <div className="space-y-2">
+                {COACH_PERSONA_OPTIONS.map((p) => (
+                  <button
+                    key={p.key}
+                    type="button"
+                    onClick={() => update("coachPersona", p.key)}
+                    className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl border transition-all text-left ${
+                      data.coachPersona === p.key
+                        ? "border-[#00d4ff]/40 bg-[#00d4ff]/5"
+                        : "border-[#2a2a2a] hover:border-[#333]"
+                    }`}
+                  >
+                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                      data.coachPersona === p.key ? "border-[#00d4ff] bg-[#00d4ff]" : "border-[#444]"
+                    }`}>
+                      {data.coachPersona === p.key && <div className="w-1.5 h-1.5 rounded-full bg-black" />}
+                    </div>
+                    <div>
+                      <span className={`text-sm font-medium ${data.coachPersona === p.key ? "text-white" : "text-[#999]"}`}>{p.name}</span>
+                      <p className="text-[10px] text-[#555] mt-0.5">{p.description}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-[#444] mt-1.5">Sets the tone for your AI coach in chat and plans</p>
+            </div>
+
             <div>
               <label className={labelClass}>Fitness Level</label>
               <select className={selectClass} value={data.fitnessLevel}
@@ -331,6 +367,26 @@ export function ProfileForm() {
                   <option key={d} value={d}>{d} day{d > 1 ? "s" : ""} per week</option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className={labelClass}>Workout Session Length</label>
+              <div className="grid grid-cols-5 gap-2">
+                {WORKOUT_DURATION_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => update("workoutDurationMin", String(opt.value))}
+                    className={`py-2.5 rounded-lg border text-xs font-semibold transition-all ${
+                      data.workoutDurationMin === String(opt.value)
+                        ? "border-[#00d4ff] bg-[#00d4ff]/10 text-[#00d4ff]"
+                        : "border-[#333] text-[#555] hover:border-[#444] hover:text-[#999]"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-[#444] mt-1.5">How long you want each workout session to be</p>
             </div>
             <div>
               <label className={labelClass}>Total Active Days Per Week</label>

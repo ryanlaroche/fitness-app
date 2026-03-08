@@ -7,6 +7,7 @@ import { z } from "zod";
 const PostSchema = z.object({
   mealType: z.enum(["breakfast", "lunch", "dinner", "snack"]),
   description: z.string().min(1),
+  date: z.string().optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -101,6 +102,7 @@ export async function POST(req: NextRequest) {
     const contentType = req.headers.get("content-type") ?? "";
     let mealType: string;
     let description: string;
+    let dateStr: string | null = null;
     let photoBase64: string | null = null;
     let photoMediaType: string | null = null;
 
@@ -108,6 +110,7 @@ export async function POST(req: NextRequest) {
       const formData = await req.formData();
       mealType = formData.get("mealType") as string;
       description = (formData.get("description") as string) || "Photo of food";
+      dateStr = formData.get("date") as string | null;
       const photo = formData.get("photo") as File | null;
 
       if (!mealType || !["breakfast", "lunch", "dinner", "snack"].includes(mealType)) {
@@ -124,6 +127,7 @@ export async function POST(req: NextRequest) {
       const parsed = PostSchema.parse(body);
       mealType = parsed.mealType;
       description = parsed.description;
+      dateStr = parsed.date ?? null;
     }
 
     let response;
@@ -179,6 +183,7 @@ export async function POST(req: NextRequest) {
         proteinG,
         carbsG,
         fatG,
+        ...(dateStr ? { date: new Date(dateStr) } : {}),
       },
     });
 

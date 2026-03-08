@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Dumbbell, Activity, Footprints, AlertTriangle, RefreshCw, UtensilsCrossed, Check } from "lucide-react";
+import { Loader2, Dumbbell, Activity, Footprints, AlertTriangle, RefreshCw, UtensilsCrossed, Check, MessageSquare, Clock } from "lucide-react";
+import { COACH_PERSONA_OPTIONS, WORKOUT_DURATION_OPTIONS } from "@/lib/types";
 import { EquipmentManager } from "@/components/profile/equipment-manager";
 import { ActivityManager } from "@/components/profile/activity-manager";
 import { ActivityRecord } from "@/lib/types";
@@ -27,6 +28,8 @@ type ProfileData = {
   prefersLeftovers: boolean;
   wantsWorkouts: boolean;
   wantsDiet: boolean;
+  coachPersona: string;
+  workoutDurationMin: number;
 };
 
 export default function ProfilePage() {
@@ -49,6 +52,11 @@ export default function ProfilePage() {
   const [wantsWorkouts, setWantsWorkouts] = useState(true);
   const [wantsDiet, setWantsDiet] = useState(true);
   const [featureSaving, setFeatureSaving] = useState(false);
+
+  // Coach & duration
+  const [coachPersona, setCoachPersona] = useState("balanced");
+  const [workoutDuration, setWorkoutDuration] = useState(60);
+  const [coachSaving, setCoachSaving] = useState(false);
 
   // Regeneration banner
   const [showRegen, setShowRegen] = useState(false);
@@ -81,6 +89,8 @@ export default function ProfilePage() {
             prefersLeftovers: data.prefersLeftovers ?? false,
             wantsWorkouts: data.wantsWorkouts ?? true,
             wantsDiet: data.wantsDiet ?? true,
+            coachPersona: data.coachPersona ?? "balanced",
+            workoutDurationMin: data.workoutDurationMin ?? 60,
           });
           setWorkoutDays(data.weeklyWorkoutDays ?? 3);
           setActiveDays(data.weeklyActiveDays || data.weeklyWorkoutDays || 3);
@@ -89,6 +99,8 @@ export default function ProfilePage() {
           setDietNotes(data.dietNotes ?? "");
           setWantsWorkouts(data.wantsWorkouts ?? true);
           setWantsDiet(data.wantsDiet ?? true);
+          setCoachPersona(data.coachPersona ?? "balanced");
+          setWorkoutDuration(data.workoutDurationMin ?? 60);
         } else {
           setError("No profile found. Please complete onboarding first.");
         }
@@ -214,6 +226,33 @@ export default function ProfilePage() {
       setFeatureSaving(false);
     }
   };
+
+  const saveCoachSettings = async () => {
+    if (!profile) return;
+    setCoachSaving(true);
+    try {
+      const { activities: _a4, ...profileData4 } = profile;
+      const res = await fetch("/api/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...profileData4,
+          coachPersona,
+          workoutDurationMin: workoutDuration,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      setProfile((p) => p ? { ...p, coachPersona, workoutDurationMin: workoutDuration } : p);
+      setShowRegen(true);
+      setRegenDone("");
+    } catch {
+      setError("Failed to save coach settings.");
+    } finally {
+      setCoachSaving(false);
+    }
+  };
+
+  const hasCoachChanges = profile && (coachPersona !== profile.coachPersona || workoutDuration !== profile.workoutDurationMin);
 
   const hasFeatureChanges = profile && (wantsWorkouts !== profile.wantsWorkouts || wantsDiet !== profile.wantsDiet);
 
@@ -359,6 +398,75 @@ export default function ProfilePage() {
               Save Preferences
             </button>
           )}
+        </div>
+
+        {/* Coach Persona & Workout Duration */}
+        <div className="bg-[#111] border border-[#222] rounded-2xl p-6">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-8 h-8 bg-purple-500/10 rounded-lg flex items-center justify-center">
+              <MessageSquare className="h-4 w-4 text-purple-400" />
+            </div>
+            <h2 className="text-sm font-semibold text-white tracking-tight">Coach & Workout Settings</h2>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <label className={labelClass}>Coach Personality</label>
+              <div className="space-y-2">
+                {COACH_PERSONA_OPTIONS.map((p) => (
+                  <button
+                    key={p.key}
+                    type="button"
+                    onClick={() => setCoachPersona(p.key)}
+                    className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl border transition-all text-left ${
+                      coachPersona === p.key
+                        ? "border-[#00d4ff]/40 bg-[#00d4ff]/5"
+                        : "border-[#2a2a2a] hover:border-[#333]"
+                    }`}
+                  >
+                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                      coachPersona === p.key ? "border-[#00d4ff] bg-[#00d4ff]" : "border-[#444]"
+                    }`}>
+                      {coachPersona === p.key && <div className="w-1.5 h-1.5 rounded-full bg-black" />}
+                    </div>
+                    <div>
+                      <span className={`text-sm font-medium ${coachPersona === p.key ? "text-white" : "text-[#999]"}`}>{p.name}</span>
+                      <p className="text-[10px] text-[#555] mt-0.5">{p.description}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className={labelClass}>Workout Session Length</label>
+              <div className="grid grid-cols-5 gap-2">
+                {WORKOUT_DURATION_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setWorkoutDuration(opt.value)}
+                    className={`py-2.5 rounded-lg border text-xs font-semibold transition-all ${
+                      workoutDuration === opt.value
+                        ? "border-[#00d4ff] bg-[#00d4ff]/10 text-[#00d4ff]"
+                        : "border-[#333] text-[#555] hover:border-[#444] hover:text-[#999]"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-[#444] mt-1.5">How long you want each workout session to be</p>
+            </div>
+            {hasCoachChanges && (
+              <button
+                onClick={saveCoachSettings}
+                disabled={coachSaving}
+                className="flex items-center gap-1.5 px-4 py-2 bg-[#00d4ff] text-black font-semibold text-xs rounded-lg hover:bg-[#33dcff] disabled:opacity-50 transition-colors"
+              >
+                {coachSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                Save Coach Settings
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Training & Activity Section */}

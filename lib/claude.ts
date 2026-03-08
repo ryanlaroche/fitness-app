@@ -8,6 +8,34 @@ export const anthropic = new Anthropic({
 
 type UserProfileWithActivities = UserProfile & { activities?: Activity[] };
 
+export const COACH_PERSONAS: Record<string, { name: string; description: string; prompt: string }> = {
+  balanced: {
+    name: "Coach",
+    description: "Encouraging, science-based, and practical",
+    prompt: "You are a supportive, knowledgeable personal fitness coach. Be encouraging, specific, and science-based. Provide actionable recommendations.",
+  },
+  drill_sergeant: {
+    name: "Gunnery Sgt. Hartman",
+    description: "Intense drill instructor who demands results",
+    prompt: `You are Gunnery Sergeant Hartman — a no-nonsense, intense drill instructor fitness coach. You speak in a commanding, aggressive tone inspired by Full Metal Jacket. You call the user "Private" or "maggot." You mock weakness but celebrate effort. You demand excellence and accept no excuses. Use military metaphors, colorful insults (keep it PG-13), and short barking sentences. Despite the tough love, your advice is always sound, safe, and scientifically accurate. You genuinely want them to succeed — you just express it through intensity. Never break character.`,
+  },
+  zen: {
+    name: "Zen Master",
+    description: "Calm, mindful, focused on mind-body connection",
+    prompt: "You are a calm, wise zen fitness guide. You emphasize the mind-body connection, breathing, recovery, and sustainable progress. You speak in a measured, peaceful tone. You use metaphors from nature and philosophy. You encourage patience and self-compassion while still pushing for growth. Focus on form, intention, and listening to the body.",
+  },
+  hype: {
+    name: "Hype Coach",
+    description: "High energy, pump-up motivation machine",
+    prompt: "You are an INCREDIBLY high-energy hype coach! You are PUMPED about everything! Use exclamation marks liberally! Celebrate every small win like it's a championship! Use phrases like 'LET'S GO!', 'YOU GOT THIS!', 'BEAST MODE!'. You bring infectious enthusiasm to every interaction. You make the user feel like the main character in a training montage. Despite the energy, your actual fitness advice is solid and well-reasoned.",
+  },
+  science: {
+    name: "The Professor",
+    description: "Technical, data-driven, cites research",
+    prompt: "You are a sports science professor and exercise physiologist. You explain everything with scientific precision — citing mechanisms, referencing research concepts, and using proper terminology (with plain-language explanations). You discuss progressive overload, periodization, metabolic pathways, and biomechanics. You're approachable and patient, but thorough. You love data and encourage tracking metrics.",
+  },
+};
+
 function buildEquipmentSection(profile: UserProfile): string {
   if (profile.availableEquipment === "none") {
     return "- Available Equipment: No Equipment (Bodyweight Only)";
@@ -41,13 +69,16 @@ export function buildFitnessSystemPrompt(
   profile: UserProfileWithActivities
 ): string {
   const activitiesSection = buildActivitiesSection(profile.activities);
+  const persona = COACH_PERSONAS[profile.coachPersona] ?? COACH_PERSONAS.balanced;
   const weightTarget =
     profile.weightTargetKg && profile.weeklyWeightLossKg
       ? `- Weight Target: ${profile.weightTargetKg} kg (losing ${profile.weeklyWeightLossKg} kg/week)`
       : profile.weightTargetKg
         ? `- Weight Target: ${profile.weightTargetKg} kg`
         : "";
-  return `You are an expert personal fitness coach and nutritionist. You have access to the following user profile:
+  return `${persona.prompt}
+
+You are an expert personal fitness coach and nutritionist. You have access to the following user profile:
 
 **User Profile:**
 - Age: ${profile.age} years old
@@ -125,9 +156,12 @@ export function buildWorkoutUserPrompt(
     ? `\n- Daily step target: ${profile.dailyStepTarget} steps — suggest walking on rest days to hit this target. Do NOT pile additional cardio on top of high step counts.`
     : "";
 
+  const durationMin = profile.workoutDurationMin || 60;
+
   return `Please create a detailed ${profile.weeklyWorkoutDays}-day weekly workout plan for me.
 
 Requirements:
+- **Each session should be approximately ${durationMin} minutes long** (including rest periods between sets, excluding warm-up/cool-down)
 - Base it on my fitness level (${profile.fitnessLevel}) and goal (${profile.primaryGoal.replace(/_/g, " ")})
 - Use only ${profile.availableEquipment.replace(/_/g, " ")} equipment${profile.availableEquipment !== "none" ? ` — specifically: ${(() => { try { const items: string[] = JSON.parse(profile.equipmentItems); return items.length > 0 ? items.join(", ") : "standard equipment"; } catch { return "standard equipment"; } })()}` : ""}
 - For each exercise, format it as a **markdown table row** with a YouTube search link:

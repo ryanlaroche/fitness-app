@@ -46,6 +46,8 @@ model UserProfile {
   prefersLeftovers   Boolean  @default(false)
   wantsWorkouts      Boolean  @default(true)
   wantsDiet          Boolean  @default(true)
+  coachPersona       String   @default("balanced")
+  workoutDurationMin Int      @default(60)
   dietNotes          String?
   healthNotes        String?
   weightTargetKg     Float?

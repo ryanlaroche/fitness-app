@@ -30,6 +30,8 @@ const ProfileSchema = z.object({
   prefersLeftovers: z.boolean().optional(),
   wantsWorkouts: z.boolean().optional(),
   wantsDiet: z.boolean().optional(),
+  coachPersona: z.enum(["balanced", "drill_sergeant", "zen", "hype", "science"]).optional(),
+  workoutDurationMin: z.number().int().min(15).max(180).optional(),
   dietNotes: z.string().optional().nullable(),
   healthNotes: z.string().optional().nullable(),
   weightTargetKg: z.number().positive().optional().nullable(),
