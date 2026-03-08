@@ -5,7 +5,7 @@ import { ShoppingCart, RotateCcw, RefreshCw, Loader2 } from "lucide-react";
 
 interface ShoppingListCardProps {
   mealPlanContent: string;
-  onRegenerate?: () => Promise<void>;
+  onShoppingListGenerated?: (updatedContent: string) => void;
 }
 
 function parseShoppingList(content: string): { category: string; items: string[] }[] {
@@ -48,10 +48,10 @@ function parseShoppingList(content: string): { category: string; items: string[]
 
 const STORAGE_KEY = "shopping-list-checked";
 
-export function ShoppingListCard({ mealPlanContent, onRegenerate }: ShoppingListCardProps) {
+export function ShoppingListCard({ mealPlanContent, onShoppingListGenerated }: ShoppingListCardProps) {
   const categories = parseShoppingList(mealPlanContent);
   const [checked, setChecked] = useState<Set<string>>(new Set());
-  const [regenerating, setRegenerating] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     try {
@@ -91,21 +91,30 @@ export function ShoppingListCard({ mealPlanContent, onRegenerate }: ShoppingList
           <h2 className="text-base font-semibold text-white">Weekly Shopping List</h2>
         </div>
         <p className="text-sm text-[#555] mb-4">
-          Your current meal plan doesn&apos;t include a shopping list. Regenerate your meal plan to get one.
+          Generate a shopping list based on your current meal plan.
         </p>
-        {onRegenerate && (
-          <button
-            onClick={async () => {
-              setRegenerating(true);
-              try { await onRegenerate(); } finally { setRegenerating(false); }
-            }}
-            disabled={regenerating}
-            className="flex items-center gap-2 px-4 py-2 bg-[#00d4ff] text-black font-semibold text-sm rounded-lg hover:bg-[#33dcff] disabled:opacity-50 transition-colors"
-          >
-            {regenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            {regenerating ? "Regenerating..." : "Regenerate Meal Plan"}
-          </button>
-        )}
+        <button
+          onClick={async () => {
+            setGenerating(true);
+            try {
+              const res = await fetch("/api/generate/shopping-list", { method: "POST" });
+              if (!res.ok) throw new Error("Failed to generate");
+              const data = await res.json();
+              if (data.shoppingListMarkdown && onShoppingListGenerated) {
+                onShoppingListGenerated(mealPlanContent + "\n\n" + data.shoppingListMarkdown);
+              }
+            } catch (err) {
+              console.error(err);
+            } finally {
+              setGenerating(false);
+            }
+          }}
+          disabled={generating}
+          className="flex items-center gap-2 px-4 py-2 bg-[#00d4ff] text-black font-semibold text-sm rounded-lg hover:bg-[#33dcff] disabled:opacity-50 transition-colors"
+        >
+          {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
+          {generating ? "Generating..." : "Generate Shopping List"}
+        </button>
       </div>
     );
   }
