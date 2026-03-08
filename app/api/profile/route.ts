@@ -28,6 +28,8 @@ const ProfileSchema = z.object({
     "gluten_free",
   ]),
   prefersLeftovers: z.boolean().optional(),
+  wantsWorkouts: z.boolean().optional(),
+  wantsDiet: z.boolean().optional(),
   dietNotes: z.string().optional().nullable(),
   healthNotes: z.string().optional().nullable(),
   weightTargetKg: z.number().positive().optional().nullable(),

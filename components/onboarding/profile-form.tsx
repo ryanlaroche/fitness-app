@@ -21,6 +21,8 @@ type FormData = {
   dietNotes: string;
   prefersLeftovers: boolean;
   healthNotes: string;
+  wantsWorkouts: boolean;
+  wantsDiet: boolean;
   hasWeightTarget: boolean;
   weightTargetKg: string;
   weeklyWeightLossKg: string;
@@ -41,6 +43,8 @@ const initialData: FormData = {
   dietaryPreferences: "none",
   dietNotes: "",
   prefersLeftovers: false,
+  wantsWorkouts: true,
+  wantsDiet: true,
   healthNotes: "",
   hasWeightTarget: false,
   weightTargetKg: "",
@@ -119,6 +123,8 @@ export function ProfileForm() {
           dietaryPreferences: data.dietaryPreferences,
           dietNotes: data.dietNotes || null,
           prefersLeftovers: data.prefersLeftovers,
+          wantsWorkouts: data.wantsWorkouts,
+          wantsDiet: data.wantsDiet,
           healthNotes: data.healthNotes || null,
           weightTargetKg: data.hasWeightTarget && data.weightTargetKg
             ? parseFloat(data.weightTargetKg)
@@ -139,19 +145,19 @@ export function ProfileForm() {
         });
       }
 
-      setStatus("Generating your personalized plans — this may take ~30s...");
-      const [workoutRes, mealRes] = await Promise.all([
-        fetch("/api/generate/workout", { method: "POST" }),
-        fetch("/api/generate/meal-plan", { method: "POST" }),
-      ]);
+      const genPromises: Promise<Response>[] = [];
+      if (data.wantsWorkouts) genPromises.push(fetch("/api/generate/workout", { method: "POST" }));
+      if (data.wantsDiet) genPromises.push(fetch("/api/generate/meal-plan", { method: "POST" }));
 
-      if (!workoutRes.ok) {
-        const err = await workoutRes.json().catch(() => ({}));
-        throw new Error(`Workout: ${err.error ?? workoutRes.statusText}`);
-      }
-      if (!mealRes.ok) {
-        const err = await mealRes.json().catch(() => ({}));
-        throw new Error(`Meal plan: ${err.error ?? mealRes.statusText}`);
+      if (genPromises.length > 0) {
+        setStatus("Generating your personalized plans — this may take ~30s...");
+        const results = await Promise.all(genPromises);
+        for (const res of results) {
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error ?? res.statusText);
+          }
+        }
       }
 
       setStatus("Done! Redirecting...");
@@ -249,6 +255,47 @@ export function ProfileForm() {
         {step === 1 && (
           <div className="space-y-4">
             <h2 className="text-lg font-bold text-white tracking-tight mb-5">Fitness Information</h2>
+
+            {/* What do you want? */}
+            <div>
+              <label className={labelClass}>I want help with</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => update("wantsWorkouts", !data.wantsWorkouts)}
+                  className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border transition-all text-sm ${
+                    data.wantsWorkouts
+                      ? "border-[#00d4ff]/40 bg-[#00d4ff]/5 text-[#00d4ff]"
+                      : "border-[#2a2a2a] text-[#555] hover:border-[#333] hover:text-[#999]"
+                  }`}
+                >
+                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                    data.wantsWorkouts ? "border-[#00d4ff] bg-[#00d4ff]" : "border-[#444]"
+                  }`}>
+                    {data.wantsWorkouts && <Check className="h-3 w-3 text-black" />}
+                  </div>
+                  <span className="font-medium">Workouts</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => update("wantsDiet", !data.wantsDiet)}
+                  className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border transition-all text-sm ${
+                    data.wantsDiet
+                      ? "border-[#00d4ff]/40 bg-[#00d4ff]/5 text-[#00d4ff]"
+                      : "border-[#2a2a2a] text-[#555] hover:border-[#333] hover:text-[#999]"
+                  }`}
+                >
+                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                    data.wantsDiet ? "border-[#00d4ff] bg-[#00d4ff]" : "border-[#444]"
+                  }`}>
+                    {data.wantsDiet && <Check className="h-3 w-3 text-black" />}
+                  </div>
+                  <span className="font-medium">Diet</span>
+                </button>
+              </div>
+              <p className="text-[10px] text-[#444] mt-1.5">Select at least one. You can change this later in your profile.</p>
+            </div>
+
             <div>
               <label className={labelClass}>Fitness Level</label>
               <select className={selectClass} value={data.fitnessLevel}
@@ -560,7 +607,7 @@ export function ProfileForm() {
           {step < steps.length - 1 ? (
             <button
               onClick={() => setStep((s) => s + 1)}
-              disabled={step === 0 && (!data.age || !data.heightCm || !data.weightKg)}
+              disabled={(step === 0 && (!data.age || !data.heightCm || !data.weightKg)) || (step === 1 && !data.wantsWorkouts && !data.wantsDiet)}
               className="flex items-center gap-1.5 px-5 py-2 bg-[#00d4ff] text-black font-semibold rounded-lg hover:bg-[#33dcff] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm"
             >
               Next <ChevronRight className="h-4 w-4" />

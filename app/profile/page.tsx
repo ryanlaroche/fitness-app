@@ -25,6 +25,8 @@ type ProfileData = {
   weeklyActiveDays: number;
   dailyStepTarget: number;
   prefersLeftovers: boolean;
+  wantsWorkouts: boolean;
+  wantsDiet: boolean;
 };
 
 export default function ProfilePage() {
@@ -42,6 +44,11 @@ export default function ProfilePage() {
   const [prefersLeftovers, setPrefersLeftovers] = useState(false);
   const [dietNotes, setDietNotes] = useState("");
   const [dietSaving, setDietSaving] = useState(false);
+
+  // Feature toggles
+  const [wantsWorkouts, setWantsWorkouts] = useState(true);
+  const [wantsDiet, setWantsDiet] = useState(true);
+  const [featureSaving, setFeatureSaving] = useState(false);
 
   // Regeneration banner
   const [showRegen, setShowRegen] = useState(false);
@@ -72,12 +79,16 @@ export default function ProfilePage() {
             weeklyActiveDays: data.weeklyActiveDays ?? 0,
             dailyStepTarget: data.dailyStepTarget ?? 0,
             prefersLeftovers: data.prefersLeftovers ?? false,
+            wantsWorkouts: data.wantsWorkouts ?? true,
+            wantsDiet: data.wantsDiet ?? true,
           });
           setWorkoutDays(data.weeklyWorkoutDays ?? 3);
           setActiveDays(data.weeklyActiveDays || data.weeklyWorkoutDays || 3);
           setStepTarget(data.dailyStepTarget ?? 0);
           setPrefersLeftovers(data.prefersLeftovers ?? false);
           setDietNotes(data.dietNotes ?? "");
+          setWantsWorkouts(data.wantsWorkouts ?? true);
+          setWantsDiet(data.wantsDiet ?? true);
         } else {
           setError("No profile found. Please complete onboarding first.");
         }
@@ -180,6 +191,32 @@ export default function ProfilePage() {
     );
   }
 
+  const saveFeatures = async () => {
+    if (!profile) return;
+    if (!wantsWorkouts && !wantsDiet) return;
+    setFeatureSaving(true);
+    try {
+      const { activities: _a3, ...profileData3 } = profile;
+      const res = await fetch("/api/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...profileData3,
+          wantsWorkouts,
+          wantsDiet,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      setProfile((p) => p ? { ...p, wantsWorkouts, wantsDiet } : p);
+    } catch {
+      setError("Failed to save feature preferences.");
+    } finally {
+      setFeatureSaving(false);
+    }
+  };
+
+  const hasFeatureChanges = profile && (wantsWorkouts !== profile.wantsWorkouts || wantsDiet !== profile.wantsDiet);
+
   const hasTrainingChanges =
     workoutDays !== profile.weeklyWorkoutDays ||
     activeDays !== profile.weeklyActiveDays ||
@@ -267,6 +304,63 @@ export default function ProfilePage() {
       )}
 
       <div className="space-y-4">
+        {/* Feature Preferences */}
+        <div className="bg-[#111] border border-[#222] rounded-2xl p-6">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-8 h-8 bg-[#00d4ff]/10 rounded-lg flex items-center justify-center">
+              <Check className="h-4 w-4 text-[#00d4ff]" />
+            </div>
+            <h2 className="text-sm font-semibold text-white tracking-tight">I want help with</h2>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setWantsWorkouts(!wantsWorkouts)}
+              className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border transition-all text-sm ${
+                wantsWorkouts
+                  ? "border-[#00d4ff]/40 bg-[#00d4ff]/5 text-[#00d4ff]"
+                  : "border-[#2a2a2a] text-[#555] hover:border-[#333] hover:text-[#999]"
+              }`}
+            >
+              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                wantsWorkouts ? "border-[#00d4ff] bg-[#00d4ff]" : "border-[#444]"
+              }`}>
+                {wantsWorkouts && <Check className="h-3 w-3 text-black" />}
+              </div>
+              <span className="font-medium">Workouts</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setWantsDiet(!wantsDiet)}
+              className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border transition-all text-sm ${
+                wantsDiet
+                  ? "border-[#00d4ff]/40 bg-[#00d4ff]/5 text-[#00d4ff]"
+                  : "border-[#2a2a2a] text-[#555] hover:border-[#333] hover:text-[#999]"
+              }`}
+            >
+              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                wantsDiet ? "border-[#00d4ff] bg-[#00d4ff]" : "border-[#444]"
+              }`}>
+                {wantsDiet && <Check className="h-3 w-3 text-black" />}
+              </div>
+              <span className="font-medium">Diet</span>
+            </button>
+          </div>
+          {!wantsWorkouts && !wantsDiet && (
+            <p className="text-xs text-red-400 mt-2">Select at least one.</p>
+          )}
+          {hasFeatureChanges && (
+            <button
+              onClick={saveFeatures}
+              disabled={featureSaving || (!wantsWorkouts && !wantsDiet)}
+              className="mt-3 flex items-center gap-1.5 px-4 py-2 bg-[#00d4ff] text-black font-semibold text-xs rounded-lg hover:bg-[#33dcff] disabled:opacity-50 transition-colors"
+            >
+              {featureSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+              Save Preferences
+            </button>
+          )}
+        </div>
+
         {/* Training & Activity Section */}
         <div className="bg-[#111] border border-[#222] rounded-2xl p-6">
           <div className="flex items-center gap-3 mb-5">

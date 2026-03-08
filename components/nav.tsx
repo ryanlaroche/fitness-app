@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
@@ -6,8 +7,8 @@ import { Dumbbell, MessageSquare, TrendingUp, LayoutDashboard, ClipboardList, Us
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/plans", label: "Workout", icon: ClipboardList },
-  { href: "/diet", label: "Diet", icon: UtensilsCrossed },
+  { href: "/plans", label: "Workout", icon: ClipboardList, feature: "workouts" as const },
+  { href: "/diet", label: "Diet", icon: UtensilsCrossed, feature: "diet" as const },
   { href: "/chat", label: "Chat", icon: MessageSquare },
   { href: "/progress", label: "Progress", icon: TrendingUp },
   { href: "/profile", label: "Profile", icon: User },
@@ -16,8 +17,30 @@ const navItems = [
 export function Nav() {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const [features, setFeatures] = useState<{ wantsWorkouts: boolean; wantsDiet: boolean }>({ wantsWorkouts: true, wantsDiet: true });
+
+  useEffect(() => {
+    if (!session?.user) return;
+    fetch("/api/profile")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && !data.error) {
+          setFeatures({
+            wantsWorkouts: data.wantsWorkouts ?? true,
+            wantsDiet: data.wantsDiet ?? true,
+          });
+        }
+      })
+      .catch(() => {});
+  }, [session?.user, pathname]);
 
   if (pathname === "/login" || pathname === "/register") return null;
+
+  const isDisabled = (feature?: "workouts" | "diet") => {
+    if (feature === "workouts") return !features.wantsWorkouts;
+    if (feature === "diet") return !features.wantsDiet;
+    return false;
+  };
 
   return (
     <nav className="bg-[#0a0a0a] border-b border-[#1f1f1f] sticky top-0 z-50">
@@ -30,8 +53,19 @@ export function Nav() {
             <span className="font-bold text-white tracking-tight">FitAI</span>
           </div>
           <div className="flex items-center">
-            {navItems.map(({ href, label, icon: Icon }) => {
+            {navItems.map(({ href, label, icon: Icon, feature }) => {
               const isActive = pathname === href;
+              const disabled = isDisabled(feature);
+              if (disabled) {
+                return (
+                  <span key={href}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-[#333] cursor-not-allowed"
+                    title={`Enable ${label.toLowerCase()} in your profile`}>
+                    <Icon className="h-4 w-4" />
+                    <span className="hidden sm:block">{label}</span>
+                  </span>
+                );
+              }
               return (
                 <Link key={href} href={href}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${

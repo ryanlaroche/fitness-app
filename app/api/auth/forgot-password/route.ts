@@ -3,6 +3,7 @@ import { z } from "zod";
 import crypto from "crypto";
 import { prisma } from "@/lib/db";
 import { sendPasswordResetEmail } from "@/lib/email";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 const schema = z.object({
   email: z.string().email(),
@@ -11,6 +12,9 @@ const schema = z.object({
 const SUCCESS_MESSAGE = "If an account with that email exists, we've sent a password reset link.";
 
 export async function POST(req: Request) {
+  const limited = rateLimit("forgot-password", getClientIp(req), 3, 60_000);
+  if (limited) return limited;
+
   try {
     const body = await req.json();
     const { email } = schema.parse(body);

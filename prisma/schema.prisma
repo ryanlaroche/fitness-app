@@ -14,10 +14,11 @@ model User {
   id           String        @id @default(cuid())
   name         String?
   email        String        @unique
-  password     String
+  password     String?
   image        String?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+  accounts     Account[]
   profile      UserProfile?
   workoutPlans WorkoutPlan[]
   mealPlans    MealPlan[]
@@ -43,6 +44,8 @@ model UserProfile {
   equipmentItems     String     @default("[]")
   dietaryPreferences String
   prefersLeftovers   Boolean  @default(false)
+  wantsWorkouts      Boolean  @default(true)
+  wantsDiet          Boolean  @default(true)
   dietNotes          String?
   healthNotes        String?
   weightTargetKg     Float?
@@ -112,6 +115,25 @@ model FoodLog {
   carbsG      Float?
   fatG        Float?
   createdAt   DateTime @default(now())
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
 }
 
 model PasswordResetToken {

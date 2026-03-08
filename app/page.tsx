@@ -153,7 +153,7 @@ export default async function DashboardPage() {
       {/* Today's Nutrition + Weekly Averages */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         {/* Today's Nutrition */}
-        <div className="bg-[#111] border border-[#222] rounded-2xl p-5">
+        <div className={`bg-[#111] border border-[#222] rounded-2xl p-5${!profile.wantsDiet ? " opacity-30 pointer-events-none" : ""}`}>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 bg-[#00d4ff]/10 rounded-lg flex items-center justify-center">
@@ -236,7 +236,7 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
         <Link
           href="/plans"
-          className="group flex items-center justify-between bg-[#111] border border-[#222] rounded-2xl p-5 hover:border-[#333] transition-all"
+          className={`group flex items-center justify-between bg-[#111] border border-[#222] rounded-2xl p-5 transition-all${!profile.wantsWorkouts ? " opacity-30 pointer-events-none" : " hover:border-[#333]"}`}
         >
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 bg-[#00d4ff]/10 rounded-xl flex items-center justify-center">

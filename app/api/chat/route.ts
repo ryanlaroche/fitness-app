@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth-utils";
 import { anthropic, buildChatSystemPrompt, FITNESS_TOOLS } from "@/lib/claude";
 import Anthropic from "@anthropic-ai/sdk";
+import { rateLimit } from "@/lib/rate-limit";
 
 export async function GET() {
   const { error, userId } = await requireAuth();
@@ -88,6 +89,9 @@ function buildToolSummary(
 export async function POST(req: NextRequest) {
   const { error: authError, userId } = await requireAuth();
   if (authError) return authError;
+
+  const limited = rateLimit("chat", userId!, 30, 3_600_000);
+  if (limited) return limited;
 
   try {
     const { message } = await req.json();

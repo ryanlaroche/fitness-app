@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth-utils";
 import { anthropic } from "@/lib/claude";
 import { z } from "zod";
+import { rateLimit } from "@/lib/rate-limit";
 
 const PageChatSchema = z.object({
   message: z.string().min(1),
@@ -9,8 +10,11 @@ const PageChatSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const { error: authError } = await requireAuth();
+  const { error: authError, userId } = await requireAuth();
   if (authError) return authError;
+
+  const limited = rateLimit("page-chat", userId!, 30, 3_600_000);
+  if (limited) return limited;
 
   try {
     const body = await req.json();

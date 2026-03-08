@@ -6,10 +6,14 @@ import {
   buildWorkoutSystemPrompt,
   buildWorkoutUserPrompt,
 } from "@/lib/claude";
+import { rateLimit } from "@/lib/rate-limit";
 
 export async function POST() {
   const { error, userId } = await requireAuth();
   if (error) return error;
+
+  const limited = rateLimit("generate-workout", userId!, 5, 3_600_000);
+  if (limited) return limited;
 
   try {
     const profile = await prisma.userProfile.findUnique({
@@ -20,6 +24,13 @@ export async function POST() {
       return NextResponse.json(
         { error: "No profile found. Please complete onboarding first." },
         { status: 404 }
+      );
+    }
+
+    if (!profile.wantsWorkouts) {
+      return NextResponse.json(
+        { error: "Workouts are disabled in your profile." },
+        { status: 403 }
       );
     }
 
