@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Loader2, Plus, Utensils } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Loader2, Plus, Utensils, Camera } from "lucide-react";
 
 type FoodEntry = {
   id: number;
@@ -48,6 +48,9 @@ export function FoodLogSection() {
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ mealType: "breakfast" as typeof MEAL_TYPES[number], description: "" });
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchToday = useCallback(async () => {
     try {
@@ -64,19 +67,44 @@ export function FoodLogSection() {
 
   useEffect(() => { fetchToday(); }, [fetchToday]);
 
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoFile(file);
+    const reader = new FileReader();
+    reader.onload = () => setPhotoPreview(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const clearPhoto = () => {
+    setPhotoFile(null);
+    setPhotoPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.description.trim()) return;
+    if (!form.description.trim() && !photoFile) return;
     setAdding(true);
     try {
-      const res = await fetch("/api/food-log", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
+      let res: Response;
+      if (photoFile) {
+        const formData = new FormData();
+        formData.append("mealType", form.mealType);
+        formData.append("description", form.description || "Photo of food");
+        formData.append("photo", photoFile);
+        res = await fetch("/api/food-log", { method: "POST", body: formData });
+      } else {
+        res = await fetch("/api/food-log", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(form),
+        });
+      }
       if (!res.ok) throw new Error("Failed to add");
       await fetchToday();
       setForm((f) => ({ ...f, description: "" }));
+      clearPhoto();
     } catch (err) {
       console.error(err);
     } finally {
@@ -159,21 +187,54 @@ export function FoodLogSection() {
               type="text"
               value={form.description}
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-              placeholder="e.g., 2 eggs with toast and avocado"
+              placeholder={photoFile ? "Add details (optional)" : "e.g., 2 eggs with toast and avocado"}
               className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded-lg text-sm text-white placeholder:text-[#444] focus:outline-none focus:border-[#00d4ff] transition-colors"
             />
           </div>
-          <button
-            type="submit"
-            disabled={adding || !form.description.trim()}
-            className="flex items-center gap-2 px-4 py-2 bg-[#00d4ff] text-black font-semibold text-sm rounded-lg hover:bg-[#33dcff] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            {adding ? (
-              <><Loader2 className="h-4 w-4 animate-spin" /> Estimating macros...</>
-            ) : (
-              <><Plus className="h-4 w-4" /> Add Food</>
-            )}
-          </button>
+
+          {/* Photo preview */}
+          {photoPreview && (
+            <div className="relative inline-block">
+              <img src={photoPreview} alt="Food photo" className="h-24 w-24 object-cover rounded-lg border border-[#333]" />
+              <button
+                type="button"
+                onClick={clearPhoto}
+                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-[#333] rounded-full flex items-center justify-center text-white hover:bg-red-500 transition-colors"
+              >
+                <span className="text-xs leading-none">&times;</span>
+              </button>
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={adding || (!form.description.trim() && !photoFile)}
+              className="flex items-center gap-2 px-4 py-2 bg-[#00d4ff] text-black font-semibold text-sm rounded-lg hover:bg-[#33dcff] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              {adding ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Estimating macros...</>
+              ) : (
+                <><Plus className="h-4 w-4" /> Add Food</>
+              )}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handlePhotoSelect}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={adding}
+              className="flex items-center gap-2 px-4 py-2 border border-[#333] text-[#555] text-sm rounded-lg hover:border-[#444] hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            >
+              <Camera className="h-4 w-4" /> Photo
+            </button>
+          </div>
         </form>
       </div>
     </div>

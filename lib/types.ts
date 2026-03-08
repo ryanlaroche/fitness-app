@@ -54,6 +54,7 @@ export const EQUIPMENT_OPTIONS: Record<string, string[]> = {
     "Foam Roller",
   ],
   gym: [
+    "Pull-up Bar",
     "Cable Machine",
     "Smith Machine",
     "Leg Press",

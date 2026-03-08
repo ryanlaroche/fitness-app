@@ -61,6 +61,8 @@ export function ProfileForm() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
 
+  const [customEquipmentInput, setCustomEquipmentInput] = useState("");
+
   const [newActivityName, setNewActivityName] = useState("");
   const [newActivityDays, setNewActivityDays] = useState<DayOfWeek[]>([]);
 
@@ -398,6 +400,69 @@ export function ProfileForm() {
                       <span className="text-xs">{item}</span>
                     </label>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Custom equipment */}
+            {data.availableEquipment !== "none" && (
+              <div>
+                <label className={labelClass}>
+                  Add Custom Equipment <span className="normal-case text-[#444] font-normal">(optional)</span>
+                </label>
+                {data.equipmentItems.filter((i) => !(EQUIPMENT_OPTIONS[data.availableEquipment] ?? []).includes(i)).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {data.equipmentItems
+                      .filter((i) => !(EQUIPMENT_OPTIONS[data.availableEquipment] ?? []).includes(i))
+                      .map((item) => (
+                        <span
+                          key={item}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#00d4ff]/10 border border-[#00d4ff]/30 rounded-lg text-xs text-[#00d4ff]"
+                        >
+                          {item}
+                          <button
+                            type="button"
+                            onClick={() => update("equipmentItems", data.equipmentItems.filter((i) => i !== item))}
+                            className="hover:text-white transition-colors"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={customEquipmentInput}
+                    onChange={(e) => setCustomEquipmentInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        const item = customEquipmentInput.trim();
+                        if (item && !data.equipmentItems.includes(item)) {
+                          update("equipmentItems", [...data.equipmentItems, item]);
+                          setCustomEquipmentInput("");
+                        }
+                      }
+                    }}
+                    placeholder="e.g., Ab Roller, TRX Straps"
+                    className={inputClass}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const item = customEquipmentInput.trim();
+                      if (item && !data.equipmentItems.includes(item)) {
+                        update("equipmentItems", [...data.equipmentItems, item]);
+                        setCustomEquipmentInput("");
+                      }
+                    }}
+                    disabled={!customEquipmentInput.trim()}
+                    className="flex items-center gap-1 px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg text-sm text-[#555] hover:text-white hover:border-[#333] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add
+                  </button>
                 </div>
               </div>
             )}

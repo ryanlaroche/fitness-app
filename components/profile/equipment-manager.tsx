@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Check } from "lucide-react";
+import { Loader2, Check, Plus, X } from "lucide-react";
 import { EQUIPMENT_OPTIONS } from "@/lib/types";
 
 type EquipmentManagerProps = {
@@ -15,6 +15,7 @@ export function EquipmentManager({
 }: EquipmentManagerProps) {
   const [equipmentType, setEquipmentType] = useState(initialEquipmentType);
   const [selectedItems, setSelectedItems] = useState<string[]>(initialEquipmentItems);
+  const [customInput, setCustomInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
@@ -34,6 +35,21 @@ export function EquipmentManager({
     );
     setSaved(false);
   };
+
+  const addCustomItem = () => {
+    const item = customInput.trim();
+    if (!item || selectedItems.includes(item)) return;
+    setSelectedItems((prev) => [...prev, item]);
+    setCustomInput("");
+    setSaved(false);
+  };
+
+  const removeCustomItem = (item: string) => {
+    setSelectedItems((prev) => prev.filter((i) => i !== item));
+    setSaved(false);
+  };
+
+  const customItems = selectedItems.filter((i) => !availableItems.includes(i));
 
   const handleSave = async () => {
     setSaving(true);
@@ -109,6 +125,48 @@ export function EquipmentManager({
                 <span className="text-xs">{item}</span>
               </button>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Custom equipment */}
+      {equipmentType !== "none" && (
+        <div>
+          <label className="block text-xs font-medium text-[#555] uppercase tracking-wider mb-2">
+            Add Custom Equipment
+          </label>
+          {customItems.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {customItems.map((item) => (
+                <span
+                  key={item}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#00d4ff]/10 border border-[#00d4ff]/30 rounded-lg text-xs text-[#00d4ff]"
+                >
+                  {item}
+                  <button onClick={() => removeCustomItem(item)} className="hover:text-white transition-colors">
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={customInput}
+              onChange={(e) => setCustomInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomItem(); } }}
+              placeholder="e.g., Ab Roller, TRX Straps"
+              className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg text-sm text-white placeholder:text-[#444] focus:outline-none focus:border-[#00d4ff] transition-colors"
+            />
+            <button
+              type="button"
+              onClick={addCustomItem}
+              disabled={!customInput.trim()}
+              className="flex items-center gap-1 px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg text-sm text-[#555] hover:text-white hover:border-[#333] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            >
+              <Plus className="h-3.5 w-3.5" /> Add
+            </button>
           </div>
         </div>
       )}

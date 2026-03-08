@@ -57,63 +57,118 @@ export async function GET(req: NextRequest) {
   }
 }
 
+const MACRO_TOOL = {
+  name: "estimate_food_macros",
+  description: "Estimate calories and macros for a described meal or food item",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      description: { type: "string" },
+      estimatedCalories: { type: "number" },
+      proteinG: { type: "number" },
+      carbsG: { type: "number" },
+      fatG: { type: "number" },
+    },
+    required: ["description", "estimatedCalories", "proteinG", "carbsG", "fatG"],
+  },
+};
+
+function extractMacros(response: { content: Array<{ type: string; name?: string; input?: unknown }> }) {
+  for (const block of response.content) {
+    if (block.type === "tool_use" && block.name === "estimate_food_macros") {
+      const input = block.input as {
+        estimatedCalories: number;
+        proteinG: number;
+        carbsG: number;
+        fatG: number;
+      };
+      return {
+        caloriesEst: Math.round(input.estimatedCalories),
+        proteinG: Math.round(input.proteinG * 10) / 10,
+        carbsG: Math.round(input.carbsG * 10) / 10,
+        fatG: Math.round(input.fatG * 10) / 10,
+      };
+    }
+  }
+  return { caloriesEst: null, proteinG: null, carbsG: null, fatG: null };
+}
+
 export async function POST(req: NextRequest) {
   const { error: authError, userId } = await requireAuth();
   if (authError) return authError;
 
   try {
-    const body = await req.json();
-    const { mealType, description } = PostSchema.parse(body);
+    const contentType = req.headers.get("content-type") ?? "";
+    let mealType: string;
+    let description: string;
+    let photoBase64: string | null = null;
+    let photoMediaType: string | null = null;
 
-    // Use LLM with estimate_food_macros tool to estimate macros
-    const response = await anthropic.messages.create({
-      model: "claude-opus-4-6",
-      max_tokens: 512,
-      tools: [
-        {
-          name: "estimate_food_macros",
-          description: "Estimate calories and macros for a described meal or food item",
-          input_schema: {
-            type: "object" as const,
-            properties: {
-              description: { type: "string" },
-              estimatedCalories: { type: "number" },
-              proteinG: { type: "number" },
-              carbsG: { type: "number" },
-              fatG: { type: "number" },
-            },
-            required: ["description", "estimatedCalories", "proteinG", "carbsG", "fatG"],
-          },
-        },
-      ],
-      tool_choice: { type: "any" },
-      messages: [
-        {
-          role: "user",
-          content: `Estimate the calories and macros for: "${description}". Use the estimate_food_macros tool with your best estimate.`,
-        },
-      ],
-    });
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await req.formData();
+      mealType = formData.get("mealType") as string;
+      description = (formData.get("description") as string) || "Photo of food";
+      const photo = formData.get("photo") as File | null;
 
-    let caloriesEst: number | null = null;
-    let proteinG: number | null = null;
-    let carbsG: number | null = null;
-    let fatG: number | null = null;
-
-    for (const block of response.content) {
-      if (block.type === "tool_use" && block.name === "estimate_food_macros") {
-        const input = block.input as {
-          estimatedCalories: number;
-          proteinG: number;
-          carbsG: number;
-          fatG: number;
-        };
-        caloriesEst = Math.round(input.estimatedCalories);
-        proteinG = Math.round(input.proteinG * 10) / 10;
-        carbsG = Math.round(input.carbsG * 10) / 10;
-        fatG = Math.round(input.fatG * 10) / 10;
+      if (!mealType || !["breakfast", "lunch", "dinner", "snack"].includes(mealType)) {
+        return NextResponse.json({ error: "Invalid meal type" }, { status: 400 });
       }
+
+      if (photo) {
+        const bytes = await photo.arrayBuffer();
+        photoBase64 = Buffer.from(bytes).toString("base64");
+        photoMediaType = photo.type || "image/jpeg";
+      }
+    } else {
+      const body = await req.json();
+      const parsed = PostSchema.parse(body);
+      mealType = parsed.mealType;
+      description = parsed.description;
     }
+
+    let response;
+    if (photoBase64 && photoMediaType) {
+      response = await anthropic.messages.create({
+        model: "claude-opus-4-6",
+        max_tokens: 512,
+        tools: [MACRO_TOOL],
+        tool_choice: { type: "any" },
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: photoMediaType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+                  data: photoBase64,
+                },
+              },
+              {
+                type: "text",
+                text: `Look at this photo of food${description !== "Photo of food" ? ` (described as: "${description}")` : ""}. Estimate the calories and macronutrients. Use the estimate_food_macros tool with your best estimate.`,
+              },
+            ],
+          },
+        ],
+      });
+    } else {
+      response = await anthropic.messages.create({
+        model: "claude-opus-4-6",
+        max_tokens: 512,
+        tools: [MACRO_TOOL],
+        tool_choice: { type: "any" },
+        messages: [
+          {
+            role: "user",
+            content: `Estimate the calories and macros for: "${description}". Use the estimate_food_macros tool with your best estimate.`,
+          },
+        ],
+      });
+    }
+
+    const { caloriesEst, proteinG, carbsG, fatG } = extractMacros(response);
 
     const entry = await prisma.foodLog.create({
       data: {
