@@ -25,6 +25,7 @@ type FormData = {
   wantsDiet: boolean;
   coachPersona: string;
   workoutDurationMin: string;
+  fitnessObjectives: string;
   hasWeightTarget: boolean;
   weightTargetKg: string;
   weeklyWeightLossKg: string;
@@ -49,6 +50,7 @@ const initialData: FormData = {
   wantsDiet: true,
   coachPersona: "balanced",
   workoutDurationMin: "60",
+  fitnessObjectives: "",
   healthNotes: "",
   hasWeightTarget: false,
   weightTargetKg: "",
@@ -133,6 +135,7 @@ export function ProfileForm() {
           wantsDiet: data.wantsDiet,
           coachPersona: data.coachPersona,
           workoutDurationMin: parseInt(data.workoutDurationMin),
+          fitnessObjectives: data.fitnessObjectives || null,
           healthNotes: data.healthNotes || null,
           weightTargetKg: data.hasWeightTarget && data.weightTargetKg
             ? parseFloat(data.weightTargetKg)
@@ -352,6 +355,20 @@ export function ProfileForm() {
                 <option value="maintenance">Maintenance</option>
                 <option value="endurance">Endurance</option>
               </select>
+            </div>
+            <div>
+              <label className={labelClass}>
+                Additional Objectives <span className="normal-case text-[#444] font-normal">(optional)</span>
+              </label>
+              <textarea
+                className={`${inputClass} min-h-[80px] resize-none`}
+                value={data.fitnessObjectives}
+                onChange={(e) => update("fitnessObjectives", e.target.value)}
+                placeholder="E.g., improve strength and conditioning for BJJ, train for a half marathon, increase vertical jump, rehab a shoulder injury..."
+              />
+              <p className="text-[10px] text-[#444] mt-1.5">
+                Describe any sport-specific goals, athletic objectives, or other priorities beyond your primary goal
+              </p>
             </div>
             <div>
               <label className={labelClass}>Workout Days Per Week</label>

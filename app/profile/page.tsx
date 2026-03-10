@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Dumbbell, Activity, Footprints, AlertTriangle, RefreshCw, UtensilsCrossed, Check, MessageSquare, Clock } from "lucide-react";
+import { Loader2, Dumbbell, Activity, Footprints, AlertTriangle, RefreshCw, UtensilsCrossed, Check, MessageSquare, Clock, Target } from "lucide-react";
 import { COACH_PERSONA_OPTIONS, WORKOUT_DURATION_OPTIONS } from "@/lib/types";
 import { EquipmentManager } from "@/components/profile/equipment-manager";
 import { ActivityManager } from "@/components/profile/activity-manager";
@@ -30,12 +30,18 @@ type ProfileData = {
   wantsDiet: boolean;
   coachPersona: string;
   workoutDurationMin: number;
+  fitnessObjectives: string | null;
 };
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Editable goal fields
+  const [primaryGoal, setPrimaryGoal] = useState("weight_loss");
+  const [fitnessObjectives, setFitnessObjectives] = useState("");
+  const [goalSaving, setGoalSaving] = useState(false);
 
   // Editable training fields
   const [workoutDays, setWorkoutDays] = useState(3);
@@ -91,7 +97,10 @@ export default function ProfilePage() {
             wantsDiet: data.wantsDiet ?? true,
             coachPersona: data.coachPersona ?? "balanced",
             workoutDurationMin: data.workoutDurationMin ?? 60,
+            fitnessObjectives: data.fitnessObjectives ?? null,
           });
+          setPrimaryGoal(data.primaryGoal ?? "weight_loss");
+          setFitnessObjectives(data.fitnessObjectives ?? "");
           setWorkoutDays(data.weeklyWorkoutDays ?? 3);
           setActiveDays(data.weeklyActiveDays || data.weeklyWorkoutDays || 3);
           setStepTarget(data.dailyStepTarget ?? 0);
@@ -226,6 +235,33 @@ export default function ProfilePage() {
       setFeatureSaving(false);
     }
   };
+
+  const saveGoals = async () => {
+    if (!profile) return;
+    setGoalSaving(true);
+    try {
+      const { activities: _ag, ...profileDataG } = profile;
+      const res = await fetch("/api/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...profileDataG,
+          primaryGoal,
+          fitnessObjectives: fitnessObjectives || null,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      setProfile((p) => p ? { ...p, primaryGoal, fitnessObjectives: fitnessObjectives || null } : p);
+      setShowRegen(true);
+      setRegenDone("");
+    } catch {
+      setError("Failed to save goals.");
+    } finally {
+      setGoalSaving(false);
+    }
+  };
+
+  const hasGoalChanges = profile && (primaryGoal !== profile.primaryGoal || (fitnessObjectives || null) !== (profile.fitnessObjectives || null));
 
   const saveCoachSettings = async () => {
     if (!profile) return;
@@ -398,6 +434,52 @@ export default function ProfilePage() {
               Save Preferences
             </button>
           )}
+        </div>
+
+        {/* Goals & Objectives */}
+        <div className="bg-[#111] border border-[#222] rounded-2xl p-6">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-8 h-8 bg-amber-500/10 rounded-lg flex items-center justify-center">
+              <Target className="h-4 w-4 text-amber-400" />
+            </div>
+            <h2 className="text-sm font-semibold text-white tracking-tight">Goals & Objectives</h2>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <label className={labelClass}>Primary Goal</label>
+              <select className={selectClass} value={primaryGoal}
+                onChange={(e) => setPrimaryGoal(e.target.value)}>
+                <option value="weight_loss">Weight Loss</option>
+                <option value="muscle_gain">Muscle Gain</option>
+                <option value="maintenance">Maintenance</option>
+                <option value="endurance">Endurance</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>
+                Additional Objectives <span className="normal-case text-[#444] font-normal">(optional)</span>
+              </label>
+              <textarea
+                className={`${inputClass} min-h-[80px] resize-none`}
+                value={fitnessObjectives}
+                onChange={(e) => setFitnessObjectives(e.target.value)}
+                placeholder="E.g., improve strength and conditioning for BJJ, train for a half marathon, increase vertical jump..."
+              />
+              <p className="text-[10px] text-[#444] mt-1.5">
+                Sport-specific goals, athletic objectives, or other priorities that shape your workout and diet plans
+              </p>
+            </div>
+            {hasGoalChanges && (
+              <button
+                onClick={saveGoals}
+                disabled={goalSaving}
+                className="flex items-center gap-1.5 px-4 py-2 bg-[#00d4ff] text-black font-semibold text-xs rounded-lg hover:bg-[#33dcff] disabled:opacity-50 transition-colors"
+              >
+                {goalSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                Save Goals
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Coach Persona & Workout Duration */}

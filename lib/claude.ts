@@ -95,6 +95,7 @@ ${buildEquipmentSection(profile)}
 - Prefers Leftovers for Lunch: ${profile.prefersLeftovers ? "Yes" : "No"}
 ${profile.dietNotes ? `- Diet Notes (allergies, cuisine preferences, dislikes): ${profile.dietNotes}` : ""}
 ${profile.healthNotes ? `- Health Notes / Injuries: ${profile.healthNotes}` : ""}
+${profile.fitnessObjectives ? `- Additional Objectives: ${profile.fitnessObjectives}` : ""}
 ${weightTarget}
 ${activitiesSection}
 
@@ -170,7 +171,7 @@ Requirements:
 - Do NOT include any warm-up or cool-down section
 - Add progression notes for weeks 2-4
 - Include rest day recommendations
-- Format as clean markdown with clear headers for each day${activityNote}${weightTargetNote}${weightSuggestions}${overtrainingNote}${stepTargetNote}
+- Format as clean markdown with clear headers for each day${activityNote}${weightTargetNote}${weightSuggestions}${overtrainingNote}${stepTargetNote}${profile.fitnessObjectives ? `\n- **Additional objectives**: ${profile.fitnessObjectives} — incorporate these goals into exercise selection, training structure, and programming.` : ""}
 
 Make it specific, achievable, and progressive.`;
 }
@@ -228,7 +229,7 @@ ${caloricAdjustment}${stepNote}
 
 Requirements:
 - Respect my dietary preference: ${profile.dietaryPreferences.replace(/_/g, " ")}${profile.dietNotes ? `\n- **Additional diet notes**: ${profile.dietNotes} — incorporate these preferences, allergies, and cuisine styles into the meal plan` : ""}
-- Align with my goal: ${profile.primaryGoal.replace(/_/g, " ")}
+- Align with my goal: ${profile.primaryGoal.replace(/_/g, " ")}${profile.fitnessObjectives ? `\n- **Additional objectives**: ${profile.fitnessObjectives} — tailor nutrition to support these specific goals (e.g., more carbs for endurance sport, higher protein for strength)` : ""}
 - **High protein**: target ${proteinTarget}g protein/day (1.8–2.2g per kg bodyweight at ${profile.weightKg} kg)${leftoverNote}
 - **Carb cycling**:
   - Workout days: HIGH carb (~${highCarbG}g carbs, ~${highCarbCalories} kcal from carbs = ~40% of calories)
