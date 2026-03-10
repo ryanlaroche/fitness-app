@@ -150,6 +150,10 @@ function DaySectionBlock({
         </td>
       );
     },
+    a({ children }) {
+      // Render links as plain text (strip YouTube links from exercises)
+      return <>{children}</>;
+    },
   };
 
   // No header means preamble content — render inline, no collapsing

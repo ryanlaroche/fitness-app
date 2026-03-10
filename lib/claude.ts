@@ -164,9 +164,9 @@ Requirements:
 - **Each session should be approximately ${durationMin} minutes long** (including rest periods between sets, excluding warm-up/cool-down)
 - Base it on my fitness level (${profile.fitnessLevel}) and goal (${profile.primaryGoal.replace(/_/g, " ")})
 - Use only ${profile.availableEquipment.replace(/_/g, " ")} equipment${profile.availableEquipment !== "none" ? ` — specifically: ${(() => { try { const items: string[] = JSON.parse(profile.equipmentItems); return items.length > 0 ? items.join(", ") : "standard equipment"; } catch { return "standard equipment"; } })()}` : ""}
-- For each exercise, format it as a **markdown table row** with a YouTube search link:
-  | [Exercise Name](https://www.youtube.com/results?search_query=exercise+name+form) | Sets | Reps | Rest | Suggested Weight |
-  Use the actual exercise name in the URL (replace spaces with +). Include a table header row.
+- For each exercise, format it as a **markdown table row**:
+  | Exercise Name | Sets | Reps | Rest | Suggested Weight |
+  Include a table header row. Do NOT include any links or URLs in the exercise names.
 - Do NOT include any warm-up or cool-down section
 - Add progression notes for weeks 2-4
 - Include rest day recommendations
