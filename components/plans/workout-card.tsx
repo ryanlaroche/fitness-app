@@ -110,6 +110,7 @@ function DaySectionBlock({
     tr({ children, ...props }) {
       const currentRow = rowIndex++;
       if (currentRow === 0) {
+        // Header row — add an empty th to match the checkbox column
         return (
           <tr {...props}>
             <th className="!pr-0 !pl-2 w-8"></th>
@@ -139,12 +140,6 @@ function DaySectionBlock({
           {children}
         </tr>
       );
-    },
-    thead({ children, ...props }) {
-      return <thead {...props}>{children}</thead>;
-    },
-    th({ children, ...props }) {
-      return <th {...props}>{children}</th>;
     },
     td({ children, ...props }) {
       const key = `s${sectionIdx}-${tableId}-${rowIndex - 1}`;
