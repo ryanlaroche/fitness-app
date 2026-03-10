@@ -110,7 +110,12 @@ function DaySectionBlock({
     tr({ children, ...props }) {
       const currentRow = rowIndex++;
       if (currentRow === 0) {
-        return <tr {...props}>{children}</tr>;
+        return (
+          <tr {...props}>
+            <th className="!pr-0 !pl-2 w-8"></th>
+            {children}
+          </tr>
+        );
       }
 
       const key = `s${sectionIdx}-${tableId}-${currentRow}`;
