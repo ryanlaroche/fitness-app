@@ -121,23 +121,32 @@ function DaySectionBlock({
   // Track row index per table within this section
   let tableId = 0;
   let rowIndex = 0;
+  let isExerciseTable = false;
 
   const components: Components = {
     table({ children, ...props }) {
       tableId++;
       rowIndex = 0;
+      isExerciseTable = false;
       return <table {...props}>{children}</table>;
     },
     tr({ children, ...props }) {
       const currentRow = rowIndex++;
       if (currentRow === 0) {
-        // Header row — add checkbox column + actual weight/reps columns
+        // Detect exercise tables by checking for "Sets" or "Suggested Weight" in header
+        const headerText = extractText(children).toLowerCase();
+        isExerciseTable = headerText.includes("sets") || headerText.includes("suggested weight");
+
         return (
           <tr {...props}>
             <th className="!pr-0 !pl-2 w-8"></th>
             {children}
-            <th className="text-xs font-medium text-[#555] !px-2 whitespace-nowrap">Actual Wt</th>
-            <th className="text-xs font-medium text-[#555] !px-2 whitespace-nowrap">Actual Reps</th>
+            {isExerciseTable && (
+              <>
+                <th className="text-xs font-medium text-[#555] !px-2 whitespace-nowrap">Actual Wt</th>
+                <th className="text-xs font-medium text-[#555] !px-2 whitespace-nowrap">Actual Reps</th>
+              </>
+            )}
           </tr>
         );
       }
@@ -166,34 +175,38 @@ function DaySectionBlock({
             />
           </td>
           {children}
-          <td className="!px-1 align-middle" onClick={(e) => e.stopPropagation()}>
-            <input
-              type="number"
-              min="0"
-              step="0.5"
-              placeholder="kg"
-              value={entry?.weightKg ?? ""}
-              onChange={(e) => {
-                const v = e.target.value === "" ? "" : parseFloat(e.target.value);
-                onWeightChange(key, exerciseName, "weightKg", v);
-              }}
-              className="w-16 px-1.5 py-1 text-xs bg-[#1a1a1a] border border-[#333] rounded text-white placeholder-[#555] focus:border-[#00d4ff] focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-            />
-          </td>
-          <td className="!px-1 align-middle" onClick={(e) => e.stopPropagation()}>
-            <input
-              type="number"
-              min="0"
-              step="1"
-              placeholder="reps"
-              value={entry?.reps ?? ""}
-              onChange={(e) => {
-                const v = e.target.value === "" ? "" : parseInt(e.target.value, 10);
-                onWeightChange(key, exerciseName, "reps", v);
-              }}
-              className="w-14 px-1.5 py-1 text-xs bg-[#1a1a1a] border border-[#333] rounded text-white placeholder-[#555] focus:border-[#00d4ff] focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-            />
-          </td>
+          {isExerciseTable && (
+            <>
+              <td className="!px-1 align-middle" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  placeholder="kg"
+                  value={entry?.weightKg ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value === "" ? "" : parseFloat(e.target.value);
+                    onWeightChange(key, exerciseName, "weightKg", v);
+                  }}
+                  className="w-16 px-1.5 py-1 text-xs bg-[#1a1a1a] border border-[#333] rounded text-white placeholder-[#555] focus:border-[#00d4ff] focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                />
+              </td>
+              <td className="!px-1 align-middle" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="reps"
+                  value={entry?.reps ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value === "" ? "" : parseInt(e.target.value, 10);
+                    onWeightChange(key, exerciseName, "reps", v);
+                  }}
+                  className="w-14 px-1.5 py-1 text-xs bg-[#1a1a1a] border border-[#333] rounded text-white placeholder-[#555] focus:border-[#00d4ff] focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                />
+              </td>
+            </>
+          )}
         </tr>
       );
     },
