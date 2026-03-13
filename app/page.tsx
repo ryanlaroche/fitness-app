@@ -269,22 +269,24 @@ export default async function DashboardPage() {
       </div>
 
       {/* Estimated 1RMs */}
-      {topLifts.length > 0 && (
-        <div className="bg-[#111] border border-[#222] rounded-2xl p-5 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 bg-[#00d4ff]/10 rounded-lg flex items-center justify-center">
-                <Dumbbell className="h-3.5 w-3.5 text-[#00d4ff]" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-white">Estimated 1-Rep Maxes</p>
-                <p className="text-[10px] text-[#555]">Epley formula · based on your best sets</p>
-              </div>
+      <div className="bg-[#111] border border-[#222] rounded-2xl p-5 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 bg-[#00d4ff]/10 rounded-lg flex items-center justify-center">
+              <Dumbbell className="h-3.5 w-3.5 text-[#00d4ff]" />
             </div>
+            <div>
+              <p className="text-sm font-semibold text-white">Estimated 1-Rep Maxes</p>
+              <p className="text-[10px] text-[#555]">Epley formula · based on your best sets</p>
+            </div>
+          </div>
+          {topLifts.length > 0 && (
             <Link href="/progress" className="text-xs text-[#555] hover:text-[#00d4ff] transition-colors">
               Full history →
             </Link>
-          </div>
+          )}
+        </div>
+        {topLifts.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
             {topLifts.map((lift) => (
               <div
@@ -304,8 +306,13 @@ export default async function DashboardPage() {
               </div>
             ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="text-center py-4">
+            <p className="text-sm text-[#444]">No lifting data yet</p>
+            <p className="text-xs text-[#333] mt-1">Enter weight & reps in your workout to track your estimated maxes</p>
+          </div>
+        )}
+      </div>
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
