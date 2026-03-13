@@ -1,14 +1,20 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import ReactMarkdown, { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { RefreshCw, Dumbbell, ChevronDown, CheckCircle } from "lucide-react";
+import { RefreshCw, Dumbbell, ChevronDown, CheckCircle, Save, Check } from "lucide-react";
 
 interface WorkoutCardProps {
   content: string;
   onRegenerate: () => Promise<void>;
 }
+
+type WeightEntry = {
+  exercise: string;
+  weightKg: number | "";
+  reps: number | "";
+};
 
 interface DaySection {
   header: string;
@@ -70,16 +76,31 @@ function countExerciseRows(markdown: string): number {
   return count;
 }
 
+function extractText(node: React.ReactNode): string {
+  if (typeof node === "string") return node;
+  if (typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(extractText).join("");
+  if (node && typeof node === "object" && "props" in node) {
+    const el = node as React.ReactElement<{ children?: React.ReactNode }>;
+    return extractText(el.props.children);
+  }
+  return "";
+}
+
 function DaySectionBlock({
   section,
   sectionIdx,
   completed,
   toggleExercise,
+  weightEntries,
+  onWeightChange,
 }: {
   section: DaySection;
   sectionIdx: number;
   completed: Set<string>;
   toggleExercise: (key: string) => void;
+  weightEntries: Record<string, WeightEntry>;
+  onWeightChange: (key: string, exercise: string, field: "weightKg" | "reps", value: number | "") => void;
 }) {
   const [manualCollapse, setManualCollapse] = useState<boolean | null>(null);
 
@@ -110,17 +131,24 @@ function DaySectionBlock({
     tr({ children, ...props }) {
       const currentRow = rowIndex++;
       if (currentRow === 0) {
-        // Header row — add an empty th to match the checkbox column
+        // Header row — add checkbox column + actual weight/reps columns
         return (
           <tr {...props}>
             <th className="!pr-0 !pl-2 w-8"></th>
             {children}
+            <th className="text-xs font-medium text-[#555] !px-2 whitespace-nowrap">Actual Wt</th>
+            <th className="text-xs font-medium text-[#555] !px-2 whitespace-nowrap">Actual Reps</th>
           </tr>
         );
       }
 
       const key = `s${sectionIdx}-${tableId}-${currentRow}`;
       const isDone = completed.has(key);
+      const entry = weightEntries[key];
+
+      // Extract exercise name from the first td child
+      const childArray = Array.isArray(children) ? children : [children];
+      const exerciseName = entry?.exercise || extractText(childArray[0]) || "";
 
       return (
         <tr
@@ -138,6 +166,34 @@ function DaySectionBlock({
             />
           </td>
           {children}
+          <td className="!px-1 align-middle" onClick={(e) => e.stopPropagation()}>
+            <input
+              type="number"
+              min="0"
+              step="0.5"
+              placeholder="kg"
+              value={entry?.weightKg ?? ""}
+              onChange={(e) => {
+                const v = e.target.value === "" ? "" : parseFloat(e.target.value);
+                onWeightChange(key, exerciseName, "weightKg", v);
+              }}
+              className="w-16 px-1.5 py-1 text-xs bg-[#1a1a1a] border border-[#333] rounded text-white placeholder-[#555] focus:border-[#00d4ff] focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            />
+          </td>
+          <td className="!px-1 align-middle" onClick={(e) => e.stopPropagation()}>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              placeholder="reps"
+              value={entry?.reps ?? ""}
+              onChange={(e) => {
+                const v = e.target.value === "" ? "" : parseInt(e.target.value, 10);
+                onWeightChange(key, exerciseName, "reps", v);
+              }}
+              className="w-14 px-1.5 py-1 text-xs bg-[#1a1a1a] border border-[#333] rounded text-white placeholder-[#555] focus:border-[#00d4ff] focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            />
+          </td>
         </tr>
       );
     },
@@ -212,10 +268,16 @@ function DaySectionBlock({
 export function WorkoutCard({ content, onRegenerate }: WorkoutCardProps) {
   const [regenerating, setRegenerating] = useState(false);
   const [completed, setCompleted] = useState<Set<string>>(new Set());
+  const [weightEntries, setWeightEntries] = useState<Record<string, WeightEntry>>({});
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const savedTimerRef = useRef<NodeJS.Timeout>(undefined);
 
   const handleRegenerate = async () => {
     setRegenerating(true);
     setCompleted(new Set());
+    setWeightEntries({});
+    setSaved(false);
     try {
       await onRegenerate();
     } finally {
@@ -235,6 +297,59 @@ export function WorkoutCard({ content, onRegenerate }: WorkoutCardProps) {
     });
   }, []);
 
+  const handleWeightChange = useCallback(
+    (key: string, exercise: string, field: "weightKg" | "reps", value: number | "") => {
+      setWeightEntries((prev) => ({
+        ...prev,
+        [key]: {
+          ...prev[key],
+          exercise: exercise || prev[key]?.exercise || "",
+          [field]: value,
+        } as WeightEntry,
+      }));
+      setSaved(false);
+    },
+    []
+  );
+
+  const handleSaveWorkout = async () => {
+    const entries = Object.values(weightEntries).filter(
+      (e) => e.exercise && e.weightKg !== "" && e.reps !== ""
+    );
+    if (entries.length === 0) return;
+
+    setSaving(true);
+    try {
+      const liftingNotes = entries.map((e) => ({
+        exercise: e.exercise,
+        weightKg: Number(e.weightKg),
+        reps: Number(e.reps),
+      }));
+
+      const res = await fetch("/api/progress", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workoutDone: true,
+          liftingNotes: JSON.stringify(liftingNotes),
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to save");
+      setSaved(true);
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = setTimeout(() => setSaved(false), 5000);
+    } catch (err) {
+      console.error("Error saving workout:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const hasEntries = Object.values(weightEntries).some(
+    (e) => e.exercise && e.weightKg !== "" && e.reps !== ""
+  );
+
   const cleaned = stripWarmUp(content);
   const sections = useMemo(() => parseDaySections(cleaned), [cleaned]);
 
@@ -247,14 +362,34 @@ export function WorkoutCard({ content, onRegenerate }: WorkoutCardProps) {
           </div>
           <h2 className="text-base font-semibold text-white tracking-tight">Workout Plan</h2>
         </div>
-        <button
-          onClick={handleRegenerate}
-          disabled={regenerating}
-          className="flex items-center gap-2 px-3 py-1.5 text-xs border border-[#333] text-[#999] rounded-lg hover:border-[#444] hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${regenerating ? "animate-spin" : ""}`} />
-          {regenerating ? "Regenerating..." : "Regenerate"}
-        </button>
+        <div className="flex items-center gap-2">
+          {hasEntries && (
+            <button
+              onClick={handleSaveWorkout}
+              disabled={saving || saved}
+              className={`flex items-center gap-2 px-3 py-1.5 text-xs rounded-lg transition-all ${
+                saved
+                  ? "border border-[#00d4ff]/30 text-[#00d4ff] bg-[#00d4ff]/5"
+                  : "border border-[#00d4ff]/40 text-[#00d4ff] hover:bg-[#00d4ff]/10 disabled:opacity-40 disabled:cursor-not-allowed"
+              }`}
+            >
+              {saved ? (
+                <Check className="h-3.5 w-3.5" />
+              ) : (
+                <Save className="h-3.5 w-3.5" />
+              )}
+              {saving ? "Saving..." : saved ? "Saved" : "Save Workout"}
+            </button>
+          )}
+          <button
+            onClick={handleRegenerate}
+            disabled={regenerating}
+            className="flex items-center gap-2 px-3 py-1.5 text-xs border border-[#333] text-[#999] rounded-lg hover:border-[#444] hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${regenerating ? "animate-spin" : ""}`} />
+            {regenerating ? "Regenerating..." : "Regenerate"}
+          </button>
+        </div>
       </div>
       <div className="p-6 flex flex-col gap-3">
         {sections.map((section, idx) => (
@@ -264,6 +399,8 @@ export function WorkoutCard({ content, onRegenerate }: WorkoutCardProps) {
             sectionIdx={idx}
             completed={completed}
             toggleExercise={toggleExercise}
+            weightEntries={weightEntries}
+            onWeightChange={handleWeightChange}
           />
         ))}
       </div>

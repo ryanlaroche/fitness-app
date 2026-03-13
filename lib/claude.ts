@@ -115,7 +115,8 @@ export function buildMealPlanSystemPrompt(
 }
 
 export function buildWorkoutUserPrompt(
-  profile: UserProfileWithActivities
+  profile: UserProfileWithActivities,
+  liftingHistory?: Record<string, { weightKg: number; reps: number; oneRM: number }>
 ): string {
   const activities = profile.activities ?? [];
   let activityNote = "";
@@ -159,6 +160,17 @@ export function buildWorkoutUserPrompt(
 
   const durationMin = profile.workoutDurationMin || 60;
 
+  let liftingHistoryNote = "";
+  if (liftingHistory && Object.keys(liftingHistory).length > 0) {
+    const lines = Object.entries(liftingHistory)
+      .map(([exercise, data]) => {
+        const name = exercise.split(" ").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+        return `  - ${name}: last used ${data.weightKg}kg × ${data.reps} reps (est. 1RM: ${data.oneRM}kg)`;
+      })
+      .join("\n");
+    liftingHistoryNote = `\n- **User's recent lifting history** (use these to suggest appropriate weights in the "Suggested Weight" column instead of generic percentages):\n${lines}`;
+  }
+
   return `Please create a detailed ${profile.weeklyWorkoutDays}-day weekly workout plan for me.
 
 Requirements:
@@ -171,7 +183,7 @@ Requirements:
 - Do NOT include any warm-up or cool-down section
 - Add progression notes for weeks 2-4
 - Include rest day recommendations
-- Format as clean markdown with clear headers for each day${activityNote}${weightTargetNote}${weightSuggestions}${overtrainingNote}${stepTargetNote}${profile.fitnessObjectives ? `\n- **Additional objectives**: ${profile.fitnessObjectives} — incorporate these goals into exercise selection, training structure, and programming.` : ""}
+- Format as clean markdown with clear headers for each day${activityNote}${weightTargetNote}${weightSuggestions}${liftingHistoryNote}${overtrainingNote}${stepTargetNote}${profile.fitnessObjectives ? `\n- **Additional objectives**: ${profile.fitnessObjectives} — incorporate these goals into exercise selection, training structure, and programming.` : ""}
 
 Make it specific, achievable, and progressive.`;
 }

@@ -34,11 +34,40 @@ export async function POST() {
       );
     }
 
+    // Fetch recent lifting history for personalized weight suggestions
+    const recentLogs = await prisma.progressLog.findMany({
+      where: {
+        userId: userId!,
+        liftingNotes: { not: null },
+      },
+      orderBy: { date: "desc" },
+      take: 30,
+      select: { liftingNotes: true, date: true },
+    });
+
+    // Aggregate: for each exercise, find the most recent weight/reps
+    const liftingHistory: Record<string, { weightKg: number; reps: number; oneRM: number }> = {};
+    for (const log of recentLogs) {
+      if (!log.liftingNotes) continue;
+      try {
+        const lifts: { exercise: string; weightKg: number; reps: number }[] = JSON.parse(log.liftingNotes);
+        for (const lift of lifts) {
+          const key = lift.exercise.toLowerCase().trim();
+          if (!liftingHistory[key]) {
+            const oneRM = lift.reps === 1 ? lift.weightKg : Math.round(lift.weightKg * (1 + lift.reps / 30));
+            liftingHistory[key] = { weightKg: lift.weightKg, reps: lift.reps, oneRM };
+          }
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+
     const response = await anthropic.messages.create({
       model: "claude-opus-4-6",
       max_tokens: 4000,
       system: buildWorkoutSystemPrompt(profile),
-      messages: [{ role: "user", content: buildWorkoutUserPrompt(profile) }],
+      messages: [{ role: "user", content: buildWorkoutUserPrompt(profile, liftingHistory) }],
     });
 
     const content =
