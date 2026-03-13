@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { WeightChart } from "@/components/dashboard/weight-chart";
 import { StatsCard } from "@/components/dashboard/stats-card";
-import { Scale, Flame, Trophy, MessageSquare, Dumbbell, ArrowUpRight, UtensilsCrossed } from "lucide-react";
+import { Scale, Flame, Trophy, MessageSquare, Dumbbell, ArrowUpRight, UtensilsCrossed, TrendingUp } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -82,6 +82,42 @@ export default async function DashboardPage() {
 
   const macroTargetCalories = 2000;
   const macroTargetProtein = Math.round(profile.weightKg * 2);
+
+  // Estimated 1RMs from lifting history — top 10 lifts by best 1RM
+  const COMMON_LIFTS = [
+    "bench press", "squat", "deadlift", "overhead press", "barbell row",
+    "pull-up", "lat pulldown", "leg press", "dumbbell curl", "tricep pushdown",
+    "romanian deadlift", "incline bench press", "dumbbell press", "cable row",
+    "hip thrust", "lunges", "dumbbell row", "shoulder press", "chest fly",
+    "leg curl",
+  ];
+  const liftBests: Record<string, { weightKg: number; reps: number; oneRM: number }> = {};
+  for (const log of progressLogs) {
+    if (!log.liftingNotes) continue;
+    try {
+      const lifts: { exercise: string; weightKg: number; reps: number }[] = JSON.parse(log.liftingNotes);
+      for (const lift of lifts) {
+        const key = lift.exercise.toLowerCase().trim();
+        const oneRM = lift.reps === 1 ? lift.weightKg : Math.round(lift.weightKg * (1 + lift.reps / 30));
+        if (!liftBests[key] || oneRM > liftBests[key].oneRM) {
+          liftBests[key] = { weightKg: lift.weightKg, reps: lift.reps, oneRM };
+        }
+      }
+    } catch { /* ignore */ }
+  }
+  // Sort by 1RM descending, prefer common lifts, take top 10
+  const topLifts = Object.entries(liftBests)
+    .sort((a, b) => {
+      const aCommon = COMMON_LIFTS.some((c) => a[0].includes(c)) ? 0 : 1;
+      const bCommon = COMMON_LIFTS.some((c) => b[0].includes(c)) ? 0 : 1;
+      if (aCommon !== bCommon) return aCommon - bCommon;
+      return b[1].oneRM - a[1].oneRM;
+    })
+    .slice(0, 10)
+    .map(([name, data]) => ({
+      name: name.split(" ").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" "),
+      ...data,
+    }));
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
@@ -231,6 +267,45 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Estimated 1RMs */}
+      {topLifts.length > 0 && (
+        <div className="bg-[#111] border border-[#222] rounded-2xl p-5 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 bg-[#00d4ff]/10 rounded-lg flex items-center justify-center">
+                <Dumbbell className="h-3.5 w-3.5 text-[#00d4ff]" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-white">Estimated 1-Rep Maxes</p>
+                <p className="text-[10px] text-[#555]">Epley formula · based on your best sets</p>
+              </div>
+            </div>
+            <Link href="/progress" className="text-xs text-[#555] hover:text-[#00d4ff] transition-colors">
+              Full history →
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+            {topLifts.map((lift) => (
+              <div
+                key={lift.name}
+                className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-3"
+              >
+                <p className="text-[11px] text-[#888] font-medium leading-snug mb-1.5 truncate" title={lift.name}>
+                  {lift.name}
+                </p>
+                <div className="flex items-baseline gap-1">
+                  <p className="text-lg font-bold text-[#00d4ff]">{lift.oneRM}</p>
+                  <p className="text-[10px] text-[#555]">kg</p>
+                </div>
+                <p className="text-[10px] text-[#444] mt-0.5">
+                  Best: {lift.weightKg}kg × {lift.reps}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
