@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { WeightChart } from "@/components/dashboard/weight-chart";
 import { StatsCard } from "@/components/dashboard/stats-card";
+import { EditableWeightCard } from "@/components/dashboard/editable-weight-card";
 import { Scale, Flame, Trophy, MessageSquare, Dumbbell, ArrowUpRight, UtensilsCrossed, TrendingUp } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -134,18 +135,9 @@ export default async function DashboardPage() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
-        <StatsCard
-          title="Current Weight"
-          value={`${currentWeight.toFixed(1)} kg`}
-          subtitle={
-            weightChange === 0
-              ? "Starting weight"
-              : weightChange < 0
-                ? `↓ ${Math.abs(weightChange).toFixed(1)} kg lost`
-                : `↑ ${weightChange.toFixed(1)} kg gained`
-          }
-          icon={Scale}
-          color="emerald"
+        <EditableWeightCard
+          initialWeight={currentWeight}
+          startingWeight={profile.weightKg}
         />
         <StatsCard
           title="Starting Weight"
