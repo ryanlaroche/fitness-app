@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import ReactMarkdown, { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { RefreshCw, Dumbbell, ChevronDown, CheckCircle, Save, Check, Shuffle } from "lucide-react";
 
 interface WorkoutCardProps {
   content: string;
+  planId: number;
   onRegenerate: () => Promise<void>;
   onContentChange?: (newContent: string) => void;
 }
@@ -199,18 +200,25 @@ function DaySectionBlock({
                 />
               </td>
               <td className="!px-1 align-middle" onClick={(e) => e.stopPropagation()}>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  placeholder="reps"
-                  value={entry?.reps ?? ""}
-                  onChange={(e) => {
-                    const v = e.target.value === "" ? "" : parseInt(e.target.value, 10);
-                    onWeightChange(key, exerciseName, "reps", v);
-                  }}
-                  className="w-14 px-1.5 py-1 text-xs bg-[#1a1a1a] border border-[#333] rounded text-white placeholder-[#555] focus:border-[#00d4ff] focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                />
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="reps"
+                    value={entry?.reps ?? ""}
+                    onChange={(e) => {
+                      const v = e.target.value === "" ? "" : parseInt(e.target.value, 10);
+                      onWeightChange(key, exerciseName, "reps", v);
+                    }}
+                    className="w-14 px-1.5 py-1 text-xs bg-[#1a1a1a] border border-[#333] rounded text-white placeholder-[#555] focus:border-[#00d4ff] focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  />
+                  {entry?.weightKg !== undefined && entry?.weightKg !== "" && entry?.reps !== undefined && entry?.reps !== "" && (
+                    <span className="text-[10px] text-[#00d4ff]/60 whitespace-nowrap">
+                      {Math.round(Number(entry.weightKg) * (1 + Number(entry.reps) / 30))}kg
+                    </span>
+                  )}
+                </div>
               </td>
               <td className="!px-1 align-middle" onClick={(e) => e.stopPropagation()}>
                 <button
@@ -295,15 +303,31 @@ function DaySectionBlock({
   );
 }
 
-export function WorkoutCard({ content, onRegenerate, onContentChange }: WorkoutCardProps) {
+export function WorkoutCard({ content, planId, onRegenerate, onContentChange }: WorkoutCardProps) {
+  const completedKey = `workout-completed-${planId}`;
+  const entriesKey = `workout-entries-${planId}`;
+
   const [regenerating, setRegenerating] = useState(false);
-  const [completed, setCompleted] = useState<Set<string>>(new Set());
-  const [weightEntries, setWeightEntries] = useState<Record<string, WeightEntry>>({});
+  const [completed, setCompleted] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const stored = localStorage.getItem(completedKey);
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch { return new Set(); }
+  });
+  const [weightEntries, setWeightEntries] = useState<Record<string, WeightEntry>>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const stored = localStorage.getItem(entriesKey);
+      return stored ? JSON.parse(stored) : {};
+    } catch { return {}; }
+  });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [localContent, setLocalContent] = useState(content);
   const [swappingKey, setSwappingKey] = useState<string | null>(null);
   const savedTimerRef = useRef<NodeJS.Timeout>(undefined);
+  const autoSaveTimerRef = useRef<NodeJS.Timeout>(undefined);
 
   // Sync local content when parent content changes (e.g. regenerate)
   const prevContentRef = useRef(content);
@@ -312,11 +336,52 @@ export function WorkoutCard({ content, onRegenerate, onContentChange }: WorkoutC
     setLocalContent(content);
   }
 
+  // Debounced auto-save to server when weightEntries change
+  useEffect(() => {
+    const entries = Object.values(weightEntries).filter(
+      (e) => e.exercise && e.weightKg !== "" && e.reps !== ""
+    );
+    if (entries.length === 0) return;
+
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(async () => {
+      const liftingNotes = entries.map((e) => ({
+        exercise: e.exercise,
+        weightKg: Number(e.weightKg),
+        reps: Number(e.reps),
+      }));
+
+      try {
+        const res = await fetch("/api/progress", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            workoutDone: true,
+            liftingNotes: JSON.stringify(liftingNotes),
+          }),
+        });
+        if (res.ok) {
+          setSaved(true);
+          if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+          savedTimerRef.current = setTimeout(() => setSaved(false), 3000);
+        }
+      } catch (err) {
+        console.error("Auto-save failed:", err);
+      }
+    }, 1500);
+
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [weightEntries]);
+
   const handleRegenerate = async () => {
     setRegenerating(true);
     setCompleted(new Set());
     setWeightEntries({});
     setSaved(false);
+    localStorage.removeItem(completedKey);
+    localStorage.removeItem(entriesKey);
     try {
       await onRegenerate();
     } finally {
@@ -332,23 +397,28 @@ export function WorkoutCard({ content, onRegenerate, onContentChange }: WorkoutC
       } else {
         next.add(key);
       }
+      localStorage.setItem(completedKey, JSON.stringify([...next]));
       return next;
     });
-  }, []);
+  }, [completedKey]);
 
   const handleWeightChange = useCallback(
     (key: string, exercise: string, field: "weightKg" | "reps", value: number | "") => {
-      setWeightEntries((prev) => ({
-        ...prev,
-        [key]: {
-          ...prev[key],
-          exercise: exercise || prev[key]?.exercise || "",
-          [field]: value,
-        } as WeightEntry,
-      }));
+      setWeightEntries((prev) => {
+        const next = {
+          ...prev,
+          [key]: {
+            ...prev[key],
+            exercise: exercise || prev[key]?.exercise || "",
+            [field]: value,
+          } as WeightEntry,
+        };
+        localStorage.setItem(entriesKey, JSON.stringify(next));
+        return next;
+      });
       setSaved(false);
     },
-    []
+    [entriesKey]
   );
 
   const handleSaveWorkout = async () => {

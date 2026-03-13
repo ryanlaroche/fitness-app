@@ -86,6 +86,7 @@ export default function PlansPage() {
       {workoutPlan ? (
         <WorkoutCard
           content={workoutPlan.content}
+          planId={workoutPlan.id}
           onRegenerate={regenerateWorkout}
           onContentChange={(newContent) =>
             setWorkoutPlan((prev) => prev ? { ...prev, content: newContent } : prev)

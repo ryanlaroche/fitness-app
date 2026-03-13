@@ -34,6 +34,60 @@ export async function GET() {
   }
 }
 
+export async function PATCH(req: NextRequest) {
+  const { error: authError, userId } = await requireAuth();
+  if (authError) return authError;
+
+  try {
+    const body = await req.json();
+    const data = ProgressSchema.parse(body);
+
+    // Find today's workout log and upsert
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const existing = await prisma.progressLog.findFirst({
+      where: {
+        userId: userId!,
+        workoutDone: true,
+        date: { gte: todayStart, lte: todayEnd },
+      },
+    });
+
+    if (existing) {
+      const log = await prisma.progressLog.update({
+        where: { id: existing.id },
+        data: { liftingNotes: data.liftingNotes },
+      });
+      return NextResponse.json(log);
+    } else {
+      const { date: dateStr, ...rest } = data;
+      const log = await prisma.progressLog.create({
+        data: {
+          ...rest,
+          userId: userId!,
+          ...(dateStr ? { date: new Date(dateStr) } : {}),
+        },
+      });
+      return NextResponse.json(log, { status: 201 });
+    }
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: "Invalid data", details: error.issues },
+        { status: 400 }
+      );
+    }
+    console.error("Error upserting progress:", error);
+    return NextResponse.json(
+      { error: "Failed to save progress" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(req: NextRequest) {
   const { error: authError, userId } = await requireAuth();
   if (authError) return authError;
