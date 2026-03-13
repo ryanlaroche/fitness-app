@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Dumbbell, Activity, Footprints, AlertTriangle, RefreshCw, UtensilsCrossed, Check, MessageSquare, Clock, Target } from "lucide-react";
+import { Loader2, Dumbbell, Activity, Footprints, AlertTriangle, RefreshCw, UtensilsCrossed, Check, MessageSquare, Clock, Target, Scale } from "lucide-react";
 import { COACH_PERSONA_OPTIONS, WORKOUT_DURATION_OPTIONS } from "@/lib/types";
 import { EquipmentManager } from "@/components/profile/equipment-manager";
 import { ActivityManager } from "@/components/profile/activity-manager";
@@ -37,6 +37,10 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Editable weight field
+  const [currentWeight, setCurrentWeight] = useState(0);
+  const [weightSaving, setWeightSaving] = useState(false);
 
   // Editable goal fields
   const [primaryGoal, setPrimaryGoal] = useState("weight_loss");
@@ -99,6 +103,7 @@ export default function ProfilePage() {
             workoutDurationMin: data.workoutDurationMin ?? 60,
             fitnessObjectives: data.fitnessObjectives ?? null,
           });
+          setCurrentWeight(data.weightKg ?? 0);
           setPrimaryGoal(data.primaryGoal ?? "weight_loss");
           setFitnessObjectives(data.fitnessObjectives ?? "");
           setWorkoutDays(data.weeklyWorkoutDays ?? 3);
@@ -260,6 +265,33 @@ export default function ProfilePage() {
       setGoalSaving(false);
     }
   };
+
+  const saveWeight = async () => {
+    if (!profile || currentWeight <= 0) return;
+    setWeightSaving(true);
+    try {
+      const { activities: _aw, ...profileDataW } = profile;
+      const res = await fetch("/api/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...profileDataW, weightKg: currentWeight }),
+      });
+      if (!res.ok) throw new Error();
+      // Also log to progress
+      await fetch("/api/progress", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ weightKg: currentWeight }),
+      });
+      setProfile((p) => p ? { ...p, weightKg: currentWeight } : p);
+    } catch {
+      setError("Failed to save weight.");
+    } finally {
+      setWeightSaving(false);
+    }
+  };
+
+  const hasWeightChanges = profile && currentWeight !== profile.weightKg && currentWeight > 0;
 
   const hasGoalChanges = profile && (primaryGoal !== profile.primaryGoal || (fitnessObjectives || null) !== (profile.fitnessObjectives || null));
 
@@ -432,6 +464,42 @@ export default function ProfilePage() {
             >
               {featureSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
               Save Preferences
+            </button>
+          )}
+        </div>
+
+        {/* Current Weight */}
+        <div className="bg-[#111] border border-[#222] rounded-2xl p-6">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-8 h-8 bg-emerald-500/10 rounded-lg flex items-center justify-center">
+              <Scale className="h-4 w-4 text-emerald-400" />
+            </div>
+            <h2 className="text-sm font-semibold text-white tracking-tight">Current Weight</h2>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              <input
+                type="number"
+                className={inputClass}
+                value={currentWeight || ""}
+                onChange={(e) => setCurrentWeight(parseFloat(e.target.value) || 0)}
+                placeholder="Weight in kg"
+                min="20"
+                max="300"
+                step="0.1"
+              />
+              <p className="text-[10px] text-[#444] mt-1.5">Updates your profile and logs to progress chart</p>
+            </div>
+            <span className="text-sm text-[#555]">kg</span>
+          </div>
+          {hasWeightChanges && (
+            <button
+              onClick={saveWeight}
+              disabled={weightSaving}
+              className="mt-3 flex items-center gap-1.5 px-4 py-2 bg-[#00d4ff] text-black font-semibold text-xs rounded-lg hover:bg-[#33dcff] disabled:opacity-50 transition-colors"
+            >
+              {weightSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+              Update Weight
             </button>
           )}
         </div>

@@ -48,10 +48,20 @@ export async function PATCH(req: NextRequest) {
     const todayEnd = new Date();
     todayEnd.setHours(23, 59, 59, 999);
 
+    // Build the update payload from provided fields
+    const updateData: Record<string, unknown> = {};
+    if (data.liftingNotes !== undefined) updateData.liftingNotes = data.liftingNotes;
+    if (data.weightKg !== undefined) updateData.weightKg = data.weightKg;
+    if (data.workoutDone !== undefined) updateData.workoutDone = data.workoutDone;
+    if (data.notes !== undefined) updateData.notes = data.notes;
+    if (data.caloriesConsumed !== undefined) updateData.caloriesConsumed = data.caloriesConsumed;
+    if (data.proteinG !== undefined) updateData.proteinG = data.proteinG;
+    if (data.carbsG !== undefined) updateData.carbsG = data.carbsG;
+    if (data.fatG !== undefined) updateData.fatG = data.fatG;
+
     const existing = await prisma.progressLog.findFirst({
       where: {
         userId: userId!,
-        workoutDone: true,
         date: { gte: todayStart, lte: todayEnd },
       },
     });
@@ -59,7 +69,7 @@ export async function PATCH(req: NextRequest) {
     if (existing) {
       const log = await prisma.progressLog.update({
         where: { id: existing.id },
-        data: { liftingNotes: data.liftingNotes },
+        data: updateData,
       });
       return NextResponse.json(log);
     } else {

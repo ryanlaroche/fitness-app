@@ -60,6 +60,40 @@ async function executeUpdateEquipment(
   return `Successfully updated equipment to ${equipmentType} with items: ${equipmentItems.join(", ") || "none"}.`;
 }
 
+async function executeUpdateWeight(
+  profileId: number,
+  userId: string,
+  input: { weightKg: number }
+): Promise<string> {
+  const { weightKg } = input;
+  // Update profile weight
+  await prisma.userProfile.update({
+    where: { id: profileId },
+    data: { weightKg },
+  });
+  // Create a progress log entry for today
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date();
+  todayEnd.setHours(23, 59, 59, 999);
+
+  const existing = await prisma.progressLog.findFirst({
+    where: { userId, date: { gte: todayStart, lte: todayEnd } },
+  });
+
+  if (existing) {
+    await prisma.progressLog.update({
+      where: { id: existing.id },
+      data: { weightKg },
+    });
+  } else {
+    await prisma.progressLog.create({
+      data: { userId, weightKg },
+    });
+  }
+  return `Successfully updated weight to ${weightKg} kg.`;
+}
+
 function buildToolSummary(
   toolName: string,
   input: Record<string, unknown>
@@ -79,6 +113,9 @@ function buildToolSummary(
   if (toolName === "update_equipment") {
     const items = (input.equipmentItems as string[]) ?? [];
     return `Updated equipment type to "${input.equipmentType}" with ${items.length} item(s)`;
+  }
+  if (toolName === "update_weight") {
+    return `Updated weight to ${input.weightKg} kg`;
   }
   if (toolName === "estimate_food_macros") {
     return `Macro estimate: ${Math.round(input.estimatedCalories as number)} kcal, ${input.proteinG}g protein, ${input.carbsG}g carbs, ${input.fatG}g fat`;
@@ -210,6 +247,12 @@ export async function POST(req: NextRequest) {
                         equipmentType: string;
                         equipmentItems: string[];
                       }
+                    );
+                  } else if (block.name === "update_weight") {
+                    resultText = await executeUpdateWeight(
+                      profile.id,
+                      userId!,
+                      block.input as { weightKg: number }
                     );
                   } else if (block.name === "estimate_food_macros") {
                     const input = block.input as {

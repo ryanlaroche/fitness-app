@@ -280,6 +280,7 @@ You have access to tools that let you update the user's profile in real-time:
 - Use \`manage_activities\` when the user mentions a sport or recurring activity they do (e.g., "I play tennis on Mondays", "I go running on weekends"). Replace their entire activity list with the updated set.
 - Use \`update_equipment\` when the user mentions acquiring or using specific gym equipment (e.g., "I just got a barbell and squat rack", "I now have a pull-up bar").
 - Use \`estimate_food_macros\` when the user asks about the nutritional content of a meal or food item.
+- Use \`update_weight\` when the user reports a new body weight (e.g., "I weigh 82kg now", "my weight is 75"). This updates their profile weight and creates a progress log entry.
 
 Only call tools when there is clear new information to save. After calling a tool, briefly acknowledge the update and continue helping the user.
 
@@ -361,6 +362,21 @@ export const FITNESS_TOOLS: Anthropic.Tool[] = [
         },
       },
       required: ["equipmentType", "equipmentItems"],
+    },
+  },
+  {
+    name: "update_weight",
+    description:
+      "Update the user's current body weight. Call this when the user reports a new weight measurement (e.g., 'I weigh 82kg now', 'weighed in at 180 lbs'). This updates their profile and logs the weight.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        weightKg: {
+          type: "number",
+          description: "The user's new weight in kilograms",
+        },
+      },
+      required: ["weightKg"],
     },
   },
   {
