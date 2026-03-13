@@ -3,11 +3,12 @@
 import { useState, useCallback, useMemo, useRef } from "react";
 import ReactMarkdown, { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { RefreshCw, Dumbbell, ChevronDown, CheckCircle, Save, Check } from "lucide-react";
+import { RefreshCw, Dumbbell, ChevronDown, CheckCircle, Save, Check, Shuffle } from "lucide-react";
 
 interface WorkoutCardProps {
   content: string;
   onRegenerate: () => Promise<void>;
+  onContentChange?: (newContent: string) => void;
 }
 
 type WeightEntry = {
@@ -94,6 +95,8 @@ function DaySectionBlock({
   toggleExercise,
   weightEntries,
   onWeightChange,
+  onSwapExercise,
+  swappingKey,
 }: {
   section: DaySection;
   sectionIdx: number;
@@ -101,6 +104,8 @@ function DaySectionBlock({
   toggleExercise: (key: string) => void;
   weightEntries: Record<string, WeightEntry>;
   onWeightChange: (key: string, exercise: string, field: "weightKg" | "reps", value: number | "") => void;
+  onSwapExercise: (key: string, exerciseName: string, dayHeader: string) => void;
+  swappingKey: string | null;
 }) {
   const [manualCollapse, setManualCollapse] = useState<boolean | null>(null);
 
@@ -145,6 +150,7 @@ function DaySectionBlock({
               <>
                 <th className="text-xs font-medium text-[#555] !px-2 whitespace-nowrap">Actual Wt</th>
                 <th className="text-xs font-medium text-[#555] !px-2 whitespace-nowrap">Actual Reps</th>
+                <th className="w-8"></th>
               </>
             )}
           </tr>
@@ -154,6 +160,7 @@ function DaySectionBlock({
       const key = `s${sectionIdx}-${tableId}-${currentRow}`;
       const isDone = completed.has(key);
       const entry = weightEntries[key];
+      const isSwapping = swappingKey === key;
 
       // Extract exercise name from the first td child
       const childArray = Array.isArray(children) ? children : [children];
@@ -162,7 +169,7 @@ function DaySectionBlock({
       return (
         <tr
           {...props}
-          className={`group cursor-pointer transition-opacity ${isDone ? "opacity-40" : ""}`}
+          className={`group cursor-pointer transition-opacity ${isDone ? "opacity-40" : ""} ${isSwapping ? "animate-pulse" : ""}`}
           onClick={() => toggleExercise(key)}
         >
           <td className="!pr-0 !pl-2 w-8 align-middle">
@@ -204,6 +211,16 @@ function DaySectionBlock({
                   }}
                   className="w-14 px-1.5 py-1 text-xs bg-[#1a1a1a] border border-[#333] rounded text-white placeholder-[#555] focus:border-[#00d4ff] focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                 />
+              </td>
+              <td className="!px-1 align-middle" onClick={(e) => e.stopPropagation()}>
+                <button
+                  onClick={() => onSwapExercise(key, exerciseName, section.header)}
+                  disabled={isSwapping || !!swappingKey}
+                  title="Swap for a different exercise"
+                  className="p-1 rounded text-[#555] hover:text-[#00d4ff] hover:bg-[#00d4ff]/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Shuffle className={`h-3 w-3 ${isSwapping ? "animate-spin" : ""}`} />
+                </button>
               </td>
             </>
           )}
@@ -278,13 +295,22 @@ function DaySectionBlock({
   );
 }
 
-export function WorkoutCard({ content, onRegenerate }: WorkoutCardProps) {
+export function WorkoutCard({ content, onRegenerate, onContentChange }: WorkoutCardProps) {
   const [regenerating, setRegenerating] = useState(false);
   const [completed, setCompleted] = useState<Set<string>>(new Set());
   const [weightEntries, setWeightEntries] = useState<Record<string, WeightEntry>>({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [localContent, setLocalContent] = useState(content);
+  const [swappingKey, setSwappingKey] = useState<string | null>(null);
   const savedTimerRef = useRef<NodeJS.Timeout>(undefined);
+
+  // Sync local content when parent content changes (e.g. regenerate)
+  const prevContentRef = useRef(content);
+  if (content !== prevContentRef.current) {
+    prevContentRef.current = content;
+    setLocalContent(content);
+  }
 
   const handleRegenerate = async () => {
     setRegenerating(true);
@@ -359,11 +385,68 @@ export function WorkoutCard({ content, onRegenerate }: WorkoutCardProps) {
     }
   };
 
+  const handleSwapExercise = useCallback(
+    async (key: string, exerciseName: string, dayHeader: string) => {
+      if (!exerciseName) return;
+      setSwappingKey(key);
+      try {
+        // Find the markdown line for this exercise
+        const lines = localContent.split("\n");
+        const currentRow = lines.find((line) => {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith("|")) return false;
+          const firstCell = trimmed.split("|")[1]?.trim().toLowerCase() || "";
+          return firstCell === exerciseName.toLowerCase();
+        });
+
+        // Collect other exercise names in the same day section
+        const sectionMatch = localContent.split(/^(## .+)$/m);
+        let sectionBody = "";
+        for (let i = 1; i < sectionMatch.length; i += 2) {
+          if (sectionMatch[i].includes(dayHeader)) {
+            sectionBody = sectionMatch[i + 1] || "";
+            break;
+          }
+        }
+        const otherExercises = sectionBody
+          .split("\n")
+          .filter((l) => l.trim().startsWith("|") && !l.includes("---") && !l.toLowerCase().includes("exercise"))
+          .map((l) => l.split("|")[1]?.trim())
+          .filter((n) => n && n.toLowerCase() !== exerciseName.toLowerCase());
+
+        const res = await fetch("/api/generate/exercise", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            exerciseName,
+            currentRow: currentRow || "",
+            dayHeader,
+            otherExercises,
+          }),
+        });
+
+        if (!res.ok) throw new Error("Failed to swap exercise");
+        const { row } = await res.json();
+
+        if (row && currentRow) {
+          const newContent = localContent.replace(currentRow.trim(), row.trim());
+          setLocalContent(newContent);
+          onContentChange?.(newContent);
+        }
+      } catch (err) {
+        console.error("Error swapping exercise:", err);
+      } finally {
+        setSwappingKey(null);
+      }
+    },
+    [localContent, onContentChange]
+  );
+
   const hasEntries = Object.values(weightEntries).some(
     (e) => e.exercise && e.weightKg !== "" && e.reps !== ""
   );
 
-  const cleaned = stripWarmUp(content);
+  const cleaned = stripWarmUp(localContent);
   const sections = useMemo(() => parseDaySections(cleaned), [cleaned]);
 
   return (
@@ -414,6 +497,8 @@ export function WorkoutCard({ content, onRegenerate }: WorkoutCardProps) {
             toggleExercise={toggleExercise}
             weightEntries={weightEntries}
             onWeightChange={handleWeightChange}
+            onSwapExercise={handleSwapExercise}
+            swappingKey={swappingKey}
           />
         ))}
       </div>

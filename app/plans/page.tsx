@@ -84,7 +84,13 @@ export default function PlansPage() {
       </div>
 
       {workoutPlan ? (
-        <WorkoutCard content={workoutPlan.content} onRegenerate={regenerateWorkout} />
+        <WorkoutCard
+          content={workoutPlan.content}
+          onRegenerate={regenerateWorkout}
+          onContentChange={(newContent) =>
+            setWorkoutPlan((prev) => prev ? { ...prev, content: newContent } : prev)
+          }
+        />
       ) : (
         <div className="bg-[#111] border border-dashed border-[#2a2a2a] rounded-2xl py-16 text-center">
           <p className="text-xs font-medium text-[#555] uppercase tracking-widest mb-3">No plan yet</p>
