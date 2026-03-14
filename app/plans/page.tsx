@@ -12,6 +12,8 @@ export default function PlansPage() {
   const [workoutPlan, setWorkoutPlan] = useState<WorkoutPlan>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenError, setRegenError] = useState("");
 
   const fetchPlans = async () => {
     try {
@@ -30,10 +32,19 @@ export default function PlansPage() {
   useEffect(() => { fetchPlans(); }, []);
 
   const regenerateWorkout = async () => {
-    const res = await fetch("/api/generate/workout", { method: "POST" });
-    if (!res.ok) throw new Error("Failed to regenerate workout plan");
-    const data = await res.json();
-    setWorkoutPlan(data);
+    setRegenerating(true);
+    setRegenError("");
+    try {
+      const res = await fetch("/api/generate/workout", { method: "POST" });
+      if (!res.ok) throw new Error("Failed to regenerate workout plan");
+      const data = await res.json();
+      setWorkoutPlan(data);
+    } catch (err) {
+      console.error(err);
+      setRegenError("Failed to regenerate. Please try again.");
+    } finally {
+      setRegenerating(false);
+    }
   };
 
   if (loading) {
@@ -74,14 +85,29 @@ export default function PlansPage() {
           <h1 className="text-3xl font-bold text-white tracking-tight">Workout Plan</h1>
           {workoutPlan && (
             <button
-              onClick={async () => { setLoading(true); await regenerateWorkout(); setLoading(false); }}
-              className="text-xs text-[#555] hover:text-[#00d4ff] transition-colors"
+              onClick={regenerateWorkout}
+              disabled={regenerating}
+              className="text-xs text-[#555] hover:text-[#00d4ff] transition-colors disabled:opacity-40"
             >
-              Regenerate →
+              {regenerating ? (
+                <span className="flex items-center gap-1.5">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Regenerating...
+                </span>
+              ) : (
+                "Regenerate →"
+              )}
             </button>
           )}
         </div>
       </div>
+
+      {regenError && (
+        <div className="mb-4 px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-2 text-sm text-red-400">
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+          {regenError}
+        </div>
+      )}
 
       {workoutPlan ? (
         <WorkoutCard
@@ -99,10 +125,18 @@ export default function PlansPage() {
           <p className="text-[#555] mb-8 text-sm">AI-tailored to your profile with YouTube links and suggested weights</p>
           <div className="flex gap-3 justify-center">
             <button
-              onClick={async () => { setLoading(true); await regenerateWorkout(); setLoading(false); }}
-              className="px-6 py-2.5 bg-[#00d4ff] text-black font-semibold rounded-xl hover:bg-[#33dcff] text-sm transition-colors"
+              onClick={regenerateWorkout}
+              disabled={regenerating}
+              className="px-6 py-2.5 bg-[#00d4ff] text-black font-semibold rounded-xl hover:bg-[#33dcff] text-sm transition-colors disabled:opacity-60"
             >
-              Generate Workout
+              {regenerating ? (
+                <span className="flex items-center gap-1.5">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Generating...
+                </span>
+              ) : (
+                "Generate Workout"
+              )}
             </button>
             <Link
               href="/onboarding"

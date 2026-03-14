@@ -4,6 +4,7 @@ import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import ReactMarkdown, { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { RefreshCw, Dumbbell, ChevronDown, CheckCircle, Save, Check, Shuffle } from "lucide-react";
+import { ExerciseTooltip } from "@/components/plans/exercise-tooltip";
 
 interface WorkoutCardProps {
   content: string;
@@ -128,6 +129,7 @@ function DaySectionBlock({
   let tableId = 0;
   let rowIndex = 0;
   let isExerciseTable = false;
+  let colIndex = 0;
 
   const components: Components = {
     table({ children, ...props }) {
@@ -138,6 +140,7 @@ function DaySectionBlock({
     },
     tr({ children, ...props }) {
       const currentRow = rowIndex++;
+      colIndex = 0;
       if (currentRow === 0) {
         // Detect exercise tables by checking for "Sets" or "Suggested Weight" in header
         const headerText = extractText(children).toLowerCase();
@@ -236,11 +239,19 @@ function DaySectionBlock({
       );
     },
     td({ children, ...props }) {
+      const currentCol = colIndex++;
       const key = `s${sectionIdx}-${tableId}-${rowIndex - 1}`;
       const isDone = completed.has(key);
+      const isFirstCol = currentCol === 0 && isExerciseTable && rowIndex > 1;
       return (
         <td {...props} className={isDone ? "line-through" : ""}>
-          {children}
+          {isFirstCol ? (
+            <ExerciseTooltip exerciseName={extractText(children)}>
+              {children}
+            </ExerciseTooltip>
+          ) : (
+            children
+          )}
         </td>
       );
     },

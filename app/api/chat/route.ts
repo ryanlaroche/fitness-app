@@ -94,6 +94,169 @@ async function executeUpdateWeight(
   return `Successfully updated weight to ${weightKg} kg.`;
 }
 
+async function executeGetUserData(
+  userId: string,
+  profileId: number,
+  input: { include: string[]; progressDays?: number }
+): Promise<string> {
+  const { include, progressDays = 30 } = input;
+  const results: Record<string, unknown> = {};
+
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - progressDays);
+
+  const queries: Promise<void>[] = [];
+
+  if (include.includes("profile")) {
+    queries.push(
+      prisma.userProfile
+        .findUnique({ where: { id: profileId }, include: { activities: true } })
+        .then((p) => {
+          if (p) {
+            results.profile = {
+              age: p.age,
+              gender: p.gender,
+              heightCm: p.heightCm,
+              weightKg: p.weightKg,
+              fitnessLevel: p.fitnessLevel,
+              primaryGoal: p.primaryGoal,
+              weeklyWorkoutDays: p.weeklyWorkoutDays,
+              weeklyActiveDays: p.weeklyActiveDays,
+              dailyStepTarget: p.dailyStepTarget,
+              availableEquipment: p.availableEquipment,
+              equipmentItems: p.equipmentItems,
+              dietaryPreferences: p.dietaryPreferences,
+              prefersLeftovers: p.prefersLeftovers,
+              dietNotes: p.dietNotes,
+              healthNotes: p.healthNotes,
+              fitnessObjectives: p.fitnessObjectives,
+              weightTargetKg: p.weightTargetKg,
+              weeklyWeightLossKg: p.weeklyWeightLossKg,
+              workoutDurationMin: p.workoutDurationMin,
+              coachPersona: p.coachPersona,
+              activities: p.activities.map((a) => ({
+                name: a.name,
+                daysOfWeek: JSON.parse(a.daysOfWeek),
+              })),
+            };
+          }
+        })
+    );
+  }
+
+  if (include.includes("progress_logs")) {
+    queries.push(
+      prisma.progressLog
+        .findMany({
+          where: { userId, date: { gte: cutoffDate } },
+          orderBy: { date: "desc" },
+        })
+        .then((logs) => {
+          results.progressLogs = logs.map((l) => ({
+            date: l.date.toISOString().split("T")[0],
+            weightKg: l.weightKg,
+            workoutDone: l.workoutDone,
+            liftingNotes: l.liftingNotes,
+            caloriesConsumed: l.caloriesConsumed,
+            proteinG: l.proteinG,
+            carbsG: l.carbsG,
+            fatG: l.fatG,
+            notes: l.notes,
+          }));
+        })
+    );
+  }
+
+  if (include.includes("food_logs")) {
+    queries.push(
+      prisma.foodLog
+        .findMany({
+          where: { userId, date: { gte: cutoffDate } },
+          orderBy: { date: "desc" },
+        })
+        .then((logs) => {
+          results.foodLogs = logs.map((l) => ({
+            date: l.date.toISOString().split("T")[0],
+            mealType: l.mealType,
+            description: l.description,
+            caloriesEst: l.caloriesEst,
+            proteinG: l.proteinG,
+            carbsG: l.carbsG,
+            fatG: l.fatG,
+          }));
+        })
+    );
+  }
+
+  if (include.includes("workout_plan")) {
+    queries.push(
+      prisma.workoutPlan
+        .findFirst({ where: { userId }, orderBy: { createdAt: "desc" } })
+        .then((plan) => {
+          results.workoutPlan = plan
+            ? { content: plan.content, createdAt: plan.createdAt.toISOString().split("T")[0] }
+            : null;
+        })
+    );
+  }
+
+  if (include.includes("meal_plan")) {
+    queries.push(
+      prisma.mealPlan
+        .findFirst({ where: { userId }, orderBy: { createdAt: "desc" } })
+        .then((plan) => {
+          results.mealPlan = plan
+            ? { content: plan.content, createdAt: plan.createdAt.toISOString().split("T")[0] }
+            : null;
+        })
+    );
+  }
+
+  await Promise.all(queries);
+  return JSON.stringify(results);
+}
+
+async function executeUpdateProfile(
+  profileId: number,
+  input: Record<string, unknown>
+): Promise<string> {
+  // Build update data from only the fields that were provided
+  const allowedFields = [
+    "age", "gender", "heightCm", "weightKg", "fitnessLevel", "primaryGoal",
+    "weeklyWorkoutDays", "weeklyActiveDays", "dailyStepTarget",
+    "availableEquipment", "dietaryPreferences", "prefersLeftovers",
+    "dietNotes", "healthNotes", "fitnessObjectives",
+    "weightTargetKg", "weeklyWeightLossKg", "workoutDurationMin", "coachPersona",
+  ];
+
+  const updateData: Record<string, unknown> = {};
+  const updatedFields: string[] = [];
+
+  for (const field of allowedFields) {
+    if (input[field] !== undefined) {
+      updateData[field] = input[field];
+      updatedFields.push(field);
+    }
+  }
+
+  // Handle equipmentItems separately (needs JSON serialization)
+  if (input.equipmentItems !== undefined) {
+    updateData.equipmentItems = JSON.stringify(input.equipmentItems);
+    updatedFields.push("equipmentItems");
+  }
+
+  if (updatedFields.length === 0) {
+    return "No fields to update.";
+  }
+
+  await prisma.userProfile.update({
+    where: { id: profileId },
+    data: updateData,
+  });
+
+  return `Successfully updated profile fields: ${updatedFields.join(", ")}.`;
+}
+
 function buildToolSummary(
   toolName: string,
   input: Record<string, unknown>
@@ -119,6 +282,14 @@ function buildToolSummary(
   }
   if (toolName === "estimate_food_macros") {
     return `Macro estimate: ${Math.round(input.estimatedCalories as number)} kcal, ${input.proteinG}g protein, ${input.carbsG}g carbs, ${input.fatG}g fat`;
+  }
+  if (toolName === "get_user_data") {
+    const includes = (input.include as string[]) ?? [];
+    return `Fetched user data: ${includes.join(", ")}`;
+  }
+  if (toolName === "update_profile") {
+    const fields = Object.keys(input).filter((k) => input[k] !== undefined);
+    return `Updated profile: ${fields.join(", ")}`;
   }
   return "Profile updated";
 }
@@ -263,6 +434,17 @@ export async function POST(req: NextRequest) {
                       fatG: number;
                     };
                     resultText = `Estimated macros for "${input.description}": ${Math.round(input.estimatedCalories)} kcal, ${input.proteinG}g protein, ${input.carbsG}g carbs, ${input.fatG}g fat.`;
+                  } else if (block.name === "get_user_data") {
+                    resultText = await executeGetUserData(
+                      userId!,
+                      profile.id,
+                      block.input as { include: string[]; progressDays?: number }
+                    );
+                  } else if (block.name === "update_profile") {
+                    resultText = await executeUpdateProfile(
+                      profile.id,
+                      block.input as Record<string, unknown>
+                    );
                   } else {
                     resultText = "Unknown tool";
                   }

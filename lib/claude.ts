@@ -276,13 +276,19 @@ You are acting as this user's personal fitness coach. You can:
 - Estimate calories and macros for meals using the \`estimate_food_macros\` tool
 
 **Tool Use:**
-You have access to tools that let you update the user's profile in real-time:
+You have access to tools that let you read and update the user's data in real-time:
+
+**Reading data:**
+- Use \`get_user_data\` to query the database for detailed information: full profile, progress/weight history, food logs, complete workout plan, or meal plan. Call this whenever you need data not already in your context — for example, if the user asks about their progress, past workouts, food log, or any profile detail you're unsure about.
+
+**Writing data:**
+- Use \`update_profile\` to change any profile field: fitness level, goals, dietary preferences, height, age, workout days, equipment, health notes, objectives, coach persona, etc. Use this when the user wants to update any aspect of their profile.
 - Use \`manage_activities\` when the user mentions a sport or recurring activity they do (e.g., "I play tennis on Mondays", "I go running on weekends"). Replace their entire activity list with the updated set.
 - Use \`update_equipment\` when the user mentions acquiring or using specific gym equipment (e.g., "I just got a barbell and squat rack", "I now have a pull-up bar").
-- Use \`estimate_food_macros\` when the user asks about the nutritional content of a meal or food item.
 - Use \`update_weight\` when the user reports a new body weight (e.g., "I weigh 82kg now", "my weight is 75"). This updates their profile weight and creates a progress log entry.
+- Use \`estimate_food_macros\` when the user asks about the nutritional content of a meal or food item.
 
-Only call tools when there is clear new information to save. After calling a tool, briefly acknowledge the update and continue helping the user.
+Only call tools when there is clear new information to save or when you need data to answer a question. After calling a tool, briefly acknowledge the update and continue helping the user.
 
 Always be encouraging, specific, and practical. Reference their profile when relevant.`;
 
@@ -392,6 +398,70 @@ export const FITNESS_TOOLS: Anthropic.Tool[] = [
         fatG: { type: "number" },
       },
       required: ["description", "estimatedCalories", "proteinG", "carbsG", "fatG"],
+    },
+  },
+  {
+    name: "get_user_data",
+    description:
+      "Query the database to retrieve detailed user data. Use this to look up progress history, food logs, full workout/meal plans, or the complete profile. Call this whenever you need information that isn't already in your system prompt context.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        include: {
+          type: "array",
+          description: "Which data to fetch. Include any combination of: 'profile', 'progress_logs', 'food_logs', 'workout_plan', 'meal_plan'",
+          items: {
+            type: "string",
+            enum: ["profile", "progress_logs", "food_logs", "workout_plan", "meal_plan"],
+          },
+        },
+        progressDays: {
+          type: "number",
+          description: "Number of past days of progress/food logs to fetch (default 30)",
+        },
+      },
+      required: ["include"],
+    },
+  },
+  {
+    name: "update_profile",
+    description:
+      "Update one or more fields on the user's profile. Use this when the user wants to change their fitness level, goals, dietary preferences, workout days, height, age, or any other profile setting.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        age: { type: "number", description: "User's age in years" },
+        gender: { type: "string", enum: ["male", "female", "other"] },
+        heightCm: { type: "number", description: "Height in centimeters" },
+        weightKg: { type: "number", description: "Weight in kilograms" },
+        fitnessLevel: { type: "string", enum: ["beginner", "intermediate", "advanced"] },
+        primaryGoal: {
+          type: "string",
+          enum: ["lose_weight", "build_muscle", "improve_fitness", "maintain", "gain_strength", "body_recomposition"],
+        },
+        weeklyWorkoutDays: { type: "number", description: "Number of gym/workout days per week (1-7)" },
+        weeklyActiveDays: { type: "number", description: "Total active days per week including sports (0-7)" },
+        dailyStepTarget: { type: "number", description: "Daily step target" },
+        availableEquipment: { type: "string", enum: ["none", "dumbbells", "home_gym", "gym"] },
+        equipmentItems: {
+          type: "array",
+          description: "List of specific equipment items",
+          items: { type: "string" },
+        },
+        dietaryPreferences: {
+          type: "string",
+          enum: ["no_preference", "vegetarian", "vegan", "pescatarian", "keto", "paleo", "mediterranean"],
+        },
+        prefersLeftovers: { type: "boolean", description: "Whether user prefers leftover-based lunches" },
+        dietNotes: { type: "string", description: "Allergies, cuisine preferences, dislikes" },
+        healthNotes: { type: "string", description: "Injuries, medical conditions" },
+        fitnessObjectives: { type: "string", description: "Additional fitness objectives or notes" },
+        weightTargetKg: { type: "number", description: "Target weight in kg" },
+        weeklyWeightLossKg: { type: "number", description: "Target weekly weight loss in kg" },
+        workoutDurationMin: { type: "number", description: "Preferred workout duration in minutes" },
+        coachPersona: { type: "string", enum: ["balanced", "drill_sergeant", "zen", "hype", "science"] },
+      },
+      required: [],
     },
   },
 ];

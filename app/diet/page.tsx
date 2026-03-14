@@ -14,6 +14,8 @@ export default function DietPage() {
   const [mealPlan, setMealPlan] = useState<MealPlan>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenError, setRegenError] = useState("");
 
   const fetchMealPlan = async () => {
     try {
@@ -32,10 +34,19 @@ export default function DietPage() {
   useEffect(() => { fetchMealPlan(); }, []);
 
   const regenerateMeal = async () => {
-    const res = await fetch("/api/generate/meal-plan", { method: "POST" });
-    if (!res.ok) throw new Error("Failed to regenerate meal plan");
-    const data = await res.json();
-    setMealPlan(data);
+    setRegenerating(true);
+    setRegenError("");
+    try {
+      const res = await fetch("/api/generate/meal-plan", { method: "POST" });
+      if (!res.ok) throw new Error("Failed to regenerate meal plan");
+      const data = await res.json();
+      setMealPlan(data);
+    } catch (err) {
+      console.error(err);
+      setRegenError("Failed to regenerate. Please try again.");
+    } finally {
+      setRegenerating(false);
+    }
   };
 
   if (loading) {
@@ -76,18 +87,29 @@ export default function DietPage() {
           <h1 className="text-3xl font-bold text-white tracking-tight">Diet</h1>
           {mealPlan && (
             <button
-              onClick={async () => {
-                setLoading(true);
-                await regenerateMeal();
-                setLoading(false);
-              }}
-              className="text-xs text-[#555] hover:text-[#00d4ff] transition-colors"
+              onClick={regenerateMeal}
+              disabled={regenerating}
+              className="text-xs text-[#555] hover:text-[#00d4ff] transition-colors disabled:opacity-40"
             >
-              Regenerate plan →
+              {regenerating ? (
+                <span className="flex items-center gap-1.5">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Regenerating...
+                </span>
+              ) : (
+                "Regenerate plan →"
+              )}
             </button>
           )}
         </div>
       </div>
+
+      {regenError && (
+        <div className="mb-4 px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-2 text-sm text-red-400">
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+          {regenError}
+        </div>
+      )}
 
       {/* Today's Food Log */}
       <div className="mb-6">
@@ -107,10 +129,18 @@ export default function DietPage() {
         <div className="bg-[#111] border border-dashed border-[#2a2a2a] rounded-2xl p-8 text-center">
           <p className="text-[#555] mb-3 text-sm">No meal plan yet</p>
           <button
-            onClick={async () => { setLoading(true); await regenerateMeal(); setLoading(false); }}
-            className="px-4 py-2 bg-[#00d4ff] text-black font-semibold rounded-lg hover:bg-[#33dcff] text-sm transition-colors"
+            onClick={regenerateMeal}
+            disabled={regenerating}
+            className="px-4 py-2 bg-[#00d4ff] text-black font-semibold rounded-lg hover:bg-[#33dcff] text-sm transition-colors disabled:opacity-60"
           >
-            Generate Meal Plan
+            {regenerating ? (
+              <span className="flex items-center gap-1.5">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Generating...
+              </span>
+            ) : (
+              "Generate Meal Plan"
+            )}
           </button>
           <Link
             href="/onboarding"
