@@ -158,6 +158,13 @@ export function buildWorkoutUserPrompt(
     ? `\n- Daily step target: ${profile.dailyStepTarget} steps — suggest walking on rest days to hit this target. Do NOT pile additional cardio on top of high step counts.`
     : "";
 
+  let goalProgrammingNote = "";
+  if (profile.primaryGoal === "build_strength") {
+    goalProgrammingNote = `\n- **STRENGTH / 1RM FOCUS**: Program for maximal strength, NOT hypertrophy. Use compound lifts as the priority (squat, bench, deadlift, overhead press). Rep ranges should be 1-5 reps for main lifts at 80-95% 1RM with longer rest (3-5 min). Use linear or undulating periodization. Accessories should support the main lifts (weak point training). Keep total volume moderate — intensity over volume.`;
+  } else if (profile.primaryGoal === "muscle_gain") {
+    goalProgrammingNote = `\n- **HYPERTROPHY / BODYBUILDING FOCUS**: Program for muscle growth. Use moderate rep ranges (8-12 reps) for most exercises with 60-75% 1RM. Include isolation work and varied angles for full muscle development. Keep rest periods moderate (60-90s). Prioritize time under tension and mind-muscle connection. Higher total volume across muscle groups.`;
+  }
+
   const durationMin = profile.workoutDurationMin || 60;
 
   let liftingHistoryNote = "";
@@ -175,7 +182,7 @@ export function buildWorkoutUserPrompt(
 
 Requirements:
 - **Each session should be approximately ${durationMin} minutes long** (including rest periods between sets, excluding warm-up/cool-down)
-- Base it on my fitness level (${profile.fitnessLevel}) and goal (${profile.primaryGoal.replace(/_/g, " ")})
+- Base it on my fitness level (${profile.fitnessLevel}) and goal (${profile.primaryGoal.replace(/_/g, " ")})${goalProgrammingNote}
 - Use only ${profile.availableEquipment.replace(/_/g, " ")} equipment${profile.availableEquipment !== "none" ? ` — specifically: ${(() => { try { const items: string[] = JSON.parse(profile.equipmentItems); return items.length > 0 ? items.join(", ") : "standard equipment"; } catch { return "standard equipment"; } })()}` : ""}
 - For each exercise, format it as a **markdown table row**:
   | Exercise Name | Sets | Reps | Rest | Suggested Weight |
@@ -437,7 +444,7 @@ export const FITNESS_TOOLS: Anthropic.Tool[] = [
         fitnessLevel: { type: "string", enum: ["beginner", "intermediate", "advanced"] },
         primaryGoal: {
           type: "string",
-          enum: ["lose_weight", "build_muscle", "improve_fitness", "maintain", "gain_strength", "body_recomposition"],
+          enum: ["weight_loss", "muscle_gain", "build_strength", "maintenance", "endurance"],
         },
         weeklyWorkoutDays: { type: "number", description: "Number of gym/workout days per week (1-7)" },
         weeklyActiveDays: { type: "number", description: "Total active days per week including sports (0-7)" },

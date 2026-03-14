@@ -351,7 +351,8 @@ export function ProfileForm() {
               <select className={selectClass} value={data.primaryGoal}
                 onChange={(e) => update("primaryGoal", e.target.value)}>
                 <option value="weight_loss">Weight Loss</option>
-                <option value="muscle_gain">Muscle Gain</option>
+                <option value="muscle_gain">Muscle Gain (Hypertrophy)</option>
+                <option value="build_strength">Build Strength (1RM)</option>
                 <option value="maintenance">Maintenance</option>
                 <option value="endurance">Endurance</option>
               </select>
