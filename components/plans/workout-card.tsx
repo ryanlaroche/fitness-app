@@ -290,7 +290,7 @@ function DaySectionBlock({
     },
   };
 
-  const showSwapPicker = swapOptions && swapOptions.key.startsWith(`s${sectionIdx}-`);
+  const showSwapPicker = !!(swapOptions && swapOptions.key.startsWith(`s${sectionIdx}-`));
 
   // No header means preamble content — render inline, no collapsing
   if (!section.header) {
@@ -567,7 +567,8 @@ export function WorkoutCard({ content, planId, onRegenerate, onContentChange }: 
         });
 
         if (!res.ok) throw new Error("Failed to fetch exercise alternatives");
-        const { rows } = await res.json();
+        const data = await res.json();
+        const rows: string[] | undefined = data.rows;
 
         if (rows && rows.length > 0 && currentRow) {
           const options: SwapOption[] = rows.map((row: string) => {

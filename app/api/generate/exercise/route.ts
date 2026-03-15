@@ -61,10 +61,18 @@ Reply with just the 5 table rows, one per line, nothing else.`,
     const text =
       response.content[0].type === "text" ? response.content[0].text.trim() : "";
 
-    // Extract table rows (lines starting with |, excluding separators)
+    // Extract table rows (lines starting with |, excluding separators and header rows)
     const rows = text
       .split("\n")
-      .filter((l) => l.trim().startsWith("|") && !l.includes("---"))
+      .filter((l) => {
+        const t = l.trim();
+        if (!t.startsWith("|")) return false;
+        if (t.includes("---")) return false;
+        // Skip header rows that contain column names
+        const lower = t.toLowerCase();
+        if (lower.includes("exercise name") || lower.includes("exercise |")) return false;
+        return true;
+      })
       .map((l) => l.trim())
       .slice(0, 5);
 
