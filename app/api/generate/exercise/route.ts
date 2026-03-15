@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
 
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 300,
+      max_tokens: 600,
       system: buildWorkoutSystemPrompt(profile),
       messages: [
         {
@@ -44,15 +44,16 @@ Current row: ${currentRow}
 Other exercises already in this session: ${otherExercises?.join(", ") || "none listed"}
 ${equipment ? `Available equipment: ${equipment}` : ""}
 
-Reply with ONLY a single markdown table row (starting and ending with |) for the replacement exercise. Use the same column format: | Exercise Name | Sets | Reps | Rest | Suggested Weight |
+Reply with EXACTLY 5 markdown table rows (each starting and ending with |) for alternative exercises. Use the same column format: | Exercise Name | Sets | Reps | Rest | Suggested Weight |
 
-The replacement should:
+Each replacement should:
 - Target the same muscle group(s) as ${exerciseName}
 - NOT duplicate any exercise already in the session
 - Be appropriate for a ${profile.fitnessLevel} lifter
 - Use similar sets/reps/rest scheme
+- All 5 should be different exercises
 
-Reply with just the single table row, nothing else.`,
+Reply with just the 5 table rows, one per line, nothing else.`,
         },
       ],
     });
@@ -60,16 +61,21 @@ Reply with just the single table row, nothing else.`,
     const text =
       response.content[0].type === "text" ? response.content[0].text.trim() : "";
 
-    // Extract just the table row (line starting with |)
-    const rowLine = text.split("\n").find((l) => l.trim().startsWith("|") && !l.includes("---"));
-    if (!rowLine) {
+    // Extract table rows (lines starting with |, excluding separators)
+    const rows = text
+      .split("\n")
+      .filter((l) => l.trim().startsWith("|") && !l.includes("---"))
+      .map((l) => l.trim())
+      .slice(0, 5);
+
+    if (rows.length === 0) {
       return NextResponse.json(
-        { error: "Failed to generate replacement exercise" },
+        { error: "Failed to generate replacement exercises" },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ row: rowLine.trim() });
+    return NextResponse.json({ rows });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("Error swapping exercise:", message);

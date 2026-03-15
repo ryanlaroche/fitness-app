@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import ReactMarkdown, { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { RefreshCw, Dumbbell, ChevronDown, CheckCircle, Save, Check, Shuffle } from "lucide-react";
+import { RefreshCw, Dumbbell, ChevronDown, CheckCircle, Save, Check, Shuffle, X, Loader2 } from "lucide-react";
 import { ExerciseTooltip } from "@/components/plans/exercise-tooltip";
 
 interface WorkoutCardProps {
@@ -24,6 +24,14 @@ interface DaySection {
   body: string;
   exerciseCount: number;
 }
+
+type SwapOption = { row: string; name: string; details: string };
+
+type SwapOptions = {
+  key: string;
+  options: SwapOption[];
+  currentRow: string;
+} | null;
 
 function stripWarmUp(markdown: string): string {
   return markdown.replace(
@@ -99,6 +107,9 @@ function DaySectionBlock({
   onWeightChange,
   onSwapExercise,
   swappingKey,
+  swapOptions,
+  onSelectSwap,
+  onCancelSwap,
 }: {
   section: DaySection;
   sectionIdx: number;
@@ -108,6 +119,9 @@ function DaySectionBlock({
   onWeightChange: (key: string, exercise: string, field: "weightKg" | "reps", value: number | "") => void;
   onSwapExercise: (key: string, exerciseName: string, dayHeader: string) => void;
   swappingKey: string | null;
+  swapOptions: SwapOptions;
+  onSelectSwap: (row: string) => void;
+  onCancelSwap: () => void;
 }) {
   const [manualCollapse, setManualCollapse] = useState<boolean | null>(null);
 
@@ -164,7 +178,8 @@ function DaySectionBlock({
       const key = `s${sectionIdx}-${tableId}-${currentRow}`;
       const isDone = completed.has(key);
       const entry = weightEntries[key];
-      const isSwapping = swappingKey === key;
+      const isLoading = swappingKey === key;
+      const hasOptions = swapOptions?.key === key;
 
       // Extract exercise name from the first td child
       const childArray = Array.isArray(children) ? children : [children];
@@ -173,7 +188,7 @@ function DaySectionBlock({
       return (
         <tr
           {...props}
-          className={`group cursor-pointer transition-opacity ${isDone ? "opacity-40" : ""} ${isSwapping ? "animate-pulse" : ""}`}
+          className={`group cursor-pointer transition-opacity ${isDone ? "opacity-40" : ""} ${isLoading ? "animate-pulse" : ""} ${hasOptions ? "bg-[#00d4ff]/5" : ""}`}
           onClick={() => toggleExercise(key)}
         >
           <td className="!pr-0 !pl-2 w-8 align-middle">
@@ -224,14 +239,28 @@ function DaySectionBlock({
                 </div>
               </td>
               <td className="!px-1 align-middle" onClick={(e) => e.stopPropagation()}>
-                <button
-                  onClick={() => onSwapExercise(key, exerciseName, section.header)}
-                  disabled={isSwapping || !!swappingKey}
-                  title="Swap for a different exercise"
-                  className="p-1 rounded text-[#555] hover:text-[#00d4ff] hover:bg-[#00d4ff]/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                >
-                  <Shuffle className={`h-3 w-3 ${isSwapping ? "animate-spin" : ""}`} />
-                </button>
+                {hasOptions ? (
+                  <button
+                    onClick={onCancelSwap}
+                    title="Cancel swap"
+                    className="p-1 rounded text-[#555] hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => onSwapExercise(key, exerciseName, section.header)}
+                    disabled={isLoading || !!swappingKey || !!swapOptions}
+                    title="Swap for a different exercise"
+                    className="p-1 rounded text-[#555] hover:text-[#00d4ff] hover:bg-[#00d4ff]/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Shuffle className="h-3 w-3" />
+                    )}
+                  </button>
+                )}
               </td>
             </>
           )}
@@ -260,6 +289,8 @@ function DaySectionBlock({
       return <>{children}</>;
     },
   };
+
+  const showSwapPicker = swapOptions && swapOptions.key.startsWith(`s${sectionIdx}-`);
 
   // No header means preamble content — render inline, no collapsing
   if (!section.header) {
@@ -307,6 +338,33 @@ function DaySectionBlock({
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
               {section.body}
             </ReactMarkdown>
+            {showSwapPicker && swapOptions && (
+              <div className="not-prose mt-3 border border-[#00d4ff]/20 bg-[#0d1b1f] rounded-xl p-3">
+                <div className="flex items-center justify-between mb-2.5">
+                  <span className="text-xs font-medium text-[#00d4ff]">Choose a replacement exercise</span>
+                  <button
+                    onClick={onCancelSwap}
+                    className="p-0.5 rounded text-[#555] hover:text-white transition-colors"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  {swapOptions.options.map((opt, i) => (
+                    <button
+                      key={i}
+                      onClick={() => onSelectSwap(opt.row)}
+                      className="w-full text-left px-3 py-2 rounded-lg bg-[#111] border border-[#222] hover:border-[#00d4ff]/40 hover:bg-[#00d4ff]/5 transition-all group/opt"
+                    >
+                      <span className="text-sm text-white group-hover/opt:text-[#00d4ff] transition-colors">{opt.name}</span>
+                      {opt.details && (
+                        <span className="block text-[11px] text-[#555] mt-0.5">{opt.details}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -337,6 +395,7 @@ export function WorkoutCard({ content, planId, onRegenerate, onContentChange }: 
   const [saved, setSaved] = useState(false);
   const [localContent, setLocalContent] = useState(content);
   const [swappingKey, setSwappingKey] = useState<string | null>(null);
+  const [swapOptions, setSwapOptions] = useState<SwapOptions>(null);
   const savedTimerRef = useRef<NodeJS.Timeout>(undefined);
   const autoSaveTimerRef = useRef<NodeJS.Timeout>(undefined);
 
@@ -470,6 +529,7 @@ export function WorkoutCard({ content, planId, onRegenerate, onContentChange }: 
     async (key: string, exerciseName: string, dayHeader: string) => {
       if (!exerciseName) return;
       setSwappingKey(key);
+      setSwapOptions(null);
       try {
         // Find the markdown line for this exercise
         const lines = localContent.split("\n");
@@ -506,22 +566,43 @@ export function WorkoutCard({ content, planId, onRegenerate, onContentChange }: 
           }),
         });
 
-        if (!res.ok) throw new Error("Failed to swap exercise");
-        const { row } = await res.json();
+        if (!res.ok) throw new Error("Failed to fetch exercise alternatives");
+        const { rows } = await res.json();
 
-        if (row && currentRow) {
-          const newContent = localContent.replace(currentRow.trim(), row.trim());
-          setLocalContent(newContent);
-          onContentChange?.(newContent);
+        if (rows && rows.length > 0 && currentRow) {
+          const options: SwapOption[] = rows.map((row: string) => {
+            const cells = row.split("|").filter(Boolean).map((c: string) => c.trim());
+            const name = cells[0] || "Unknown";
+            const details = cells.length >= 4
+              ? `${cells[1]} × ${cells[2]} | Rest: ${cells[3]}${cells[4] ? ` | ${cells[4]}` : ""}`
+              : "";
+            return { row: row.trim(), name, details };
+          });
+          setSwapOptions({ key, options, currentRow: currentRow.trim() });
         }
       } catch (err) {
-        console.error("Error swapping exercise:", err);
+        console.error("Error fetching swap options:", err);
       } finally {
         setSwappingKey(null);
       }
     },
-    [localContent, onContentChange]
+    [localContent]
   );
+
+  const handleSelectSwap = useCallback(
+    (row: string) => {
+      if (!swapOptions) return;
+      const newContent = localContent.replace(swapOptions.currentRow, row);
+      setLocalContent(newContent);
+      onContentChange?.(newContent);
+      setSwapOptions(null);
+    },
+    [swapOptions, localContent, onContentChange]
+  );
+
+  const handleCancelSwap = useCallback(() => {
+    setSwapOptions(null);
+  }, []);
 
   const hasEntries = Object.values(weightEntries).some(
     (e) => e.exercise && e.weightKg !== "" && e.reps !== ""
@@ -580,6 +661,9 @@ export function WorkoutCard({ content, planId, onRegenerate, onContentChange }: 
             onWeightChange={handleWeightChange}
             onSwapExercise={handleSwapExercise}
             swappingKey={swappingKey}
+            swapOptions={swapOptions}
+            onSelectSwap={handleSelectSwap}
+            onCancelSwap={handleCancelSwap}
           />
         ))}
       </div>
