@@ -124,6 +124,7 @@ function DaySectionBlock({
   onCancelSwap: () => void;
 }) {
   const [manualCollapse, setManualCollapse] = useState<boolean | null>(null);
+  const swapPickerRef = useRef<HTMLDivElement>(null);
 
   // Count completed exercises for this section
   const completedCount = useMemo(() => {
@@ -292,6 +293,12 @@ function DaySectionBlock({
 
   const showSwapPicker = !!(swapOptions && swapOptions.key.startsWith(`s${sectionIdx}-`));
 
+  useEffect(() => {
+    if (showSwapPicker && swapPickerRef.current) {
+      swapPickerRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [showSwapPicker]);
+
   // No header means preamble content — render inline, no collapsing
   if (!section.header) {
     return (
@@ -339,7 +346,7 @@ function DaySectionBlock({
               {section.body}
             </ReactMarkdown>
             {showSwapPicker && swapOptions && (
-              <div className="not-prose mt-3 border border-[#00d4ff]/20 bg-[#0d1b1f] rounded-xl p-3">
+              <div ref={swapPickerRef} className="not-prose mt-3 border border-[#00d4ff]/20 bg-[#0d1b1f] rounded-xl p-3">
                 <div className="flex items-center justify-between mb-2.5">
                   <span className="text-xs font-medium text-[#00d4ff]">Choose a replacement exercise</span>
                   <button
