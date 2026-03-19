@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect, memo } from "react";
 import ReactMarkdown, { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { RefreshCw, Dumbbell, ChevronDown, CheckCircle, Save, Check, Shuffle, X, Loader2 } from "lucide-react";
@@ -117,12 +117,32 @@ function NumericInput({
 }) {
   const [localValue, setLocalValue] = useState(String(value === "" ? "" : value));
   const prevValue = useRef(value);
+  const debounceRef = useRef<NodeJS.Timeout>(undefined);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
-  // Sync from parent only when the parent value actually changes (not from our own blur)
+  // Sync from parent only when the parent value actually changes (not from our own sync)
   if (value !== prevValue.current) {
     prevValue.current = value;
     setLocalValue(String(value === "" ? "" : value));
   }
+
+  const syncToParent = useCallback((raw: string) => {
+    if (raw === "") {
+      prevValue.current = "";
+      onChangeRef.current("");
+    } else {
+      const parsed = mode === "decimal" ? parseFloat(raw) : parseInt(raw, 10);
+      if (!isNaN(parsed)) {
+        prevValue.current = parsed;
+        onChangeRef.current(parsed);
+      }
+    }
+  }, [mode]);
+
+  useEffect(() => {
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, []);
 
   return (
     <input
@@ -132,31 +152,26 @@ function NumericInput({
       value={localValue}
       onChange={(e) => {
         const raw = e.target.value;
-        // Allow empty, digits, and one decimal point for weight
         if (mode === "decimal" && /^[0-9]*\.?[0-9]*$/.test(raw)) {
           setLocalValue(raw);
+          if (debounceRef.current) clearTimeout(debounceRef.current);
+          debounceRef.current = setTimeout(() => syncToParent(raw), 800);
         } else if (mode === "numeric" && /^[0-9]*$/.test(raw)) {
           setLocalValue(raw);
+          if (debounceRef.current) clearTimeout(debounceRef.current);
+          debounceRef.current = setTimeout(() => syncToParent(raw), 800);
         }
       }}
       onBlur={() => {
-        if (localValue === "") {
-          prevValue.current = "";
-          onChange("");
-        } else {
-          const parsed = mode === "decimal" ? parseFloat(localValue) : parseInt(localValue, 10);
-          if (!isNaN(parsed)) {
-            prevValue.current = parsed;
-            onChange(parsed);
-          }
-        }
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        syncToParent(localValue);
       }}
       className={className}
     />
   );
 }
 
-function DaySectionBlock({
+const DaySectionBlock = memo(function DaySectionBlock({
   section,
   sectionIdx,
   completed,
@@ -507,7 +522,7 @@ function DaySectionBlock({
       </div>
     </div>
   );
-}
+});
 
 export function WorkoutCard({ content, planId, onRegenerate, onContentChange, trackPerSet = false }: WorkoutCardProps) {
   const completedKey = `workout-completed-${planId}`;

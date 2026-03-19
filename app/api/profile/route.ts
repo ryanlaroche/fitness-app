@@ -12,6 +12,7 @@ const ProfileSchema = z.object({
   primaryGoal: z.enum([
     "weight_loss",
     "muscle_gain",
+    "build_strength",
     "maintenance",
     "endurance",
   ]),
