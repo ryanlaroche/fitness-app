@@ -10,6 +10,7 @@ type WorkoutPlan = { id: number; content: string; createdAt: string } | null;
 
 export default function PlansPage() {
   const [workoutPlan, setWorkoutPlan] = useState<WorkoutPlan>(null);
+  const [trackPerSet, setTrackPerSet] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [regenerating, setRegenerating] = useState(false);
@@ -17,10 +18,19 @@ export default function PlansPage() {
 
   const fetchPlans = async () => {
     try {
-      const res = await fetch("/api/plans");
-      if (!res.ok) throw new Error("Failed to load plans");
-      const data = await res.json();
+      const [plansRes, profileRes] = await Promise.all([
+        fetch("/api/plans"),
+        fetch("/api/profile"),
+      ]);
+      if (!plansRes.ok) throw new Error("Failed to load plans");
+      const data = await plansRes.json();
       setWorkoutPlan(data.workoutPlan);
+      if (profileRes.ok) {
+        const profileData = await profileRes.json();
+        if (profileData && !profileData.error) {
+          setTrackPerSet(profileData.trackPerSet ?? false);
+        }
+      }
     } catch (err) {
       console.error(err);
       setError("Failed to load workout plan. Please try again.");
@@ -117,6 +127,7 @@ export default function PlansPage() {
           onContentChange={(newContent) =>
             setWorkoutPlan((prev) => prev ? { ...prev, content: newContent } : prev)
           }
+          trackPerSet={trackPerSet}
         />
       ) : (
         <div className="bg-[#111] border border-dashed border-[#2a2a2a] rounded-2xl py-16 text-center">

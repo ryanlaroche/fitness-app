@@ -30,6 +30,7 @@ type ProfileData = {
   wantsDiet: boolean;
   coachPersona: string;
   workoutDurationMin: number;
+  trackPerSet: boolean;
   fitnessObjectives: string | null;
 };
 
@@ -66,6 +67,7 @@ export default function ProfilePage() {
   // Coach & duration
   const [coachPersona, setCoachPersona] = useState("balanced");
   const [workoutDuration, setWorkoutDuration] = useState(60);
+  const [trackPerSet, setTrackPerSet] = useState(false);
   const [coachSaving, setCoachSaving] = useState(false);
 
   // Regeneration banner
@@ -101,6 +103,7 @@ export default function ProfilePage() {
             wantsDiet: data.wantsDiet ?? true,
             coachPersona: data.coachPersona ?? "balanced",
             workoutDurationMin: data.workoutDurationMin ?? 60,
+            trackPerSet: data.trackPerSet ?? false,
             fitnessObjectives: data.fitnessObjectives ?? null,
           });
           setCurrentWeight(data.weightKg ?? 0);
@@ -115,6 +118,7 @@ export default function ProfilePage() {
           setWantsDiet(data.wantsDiet ?? true);
           setCoachPersona(data.coachPersona ?? "balanced");
           setWorkoutDuration(data.workoutDurationMin ?? 60);
+          setTrackPerSet(data.trackPerSet ?? false);
         } else {
           setError("No profile found. Please complete onboarding first.");
         }
@@ -307,10 +311,11 @@ export default function ProfilePage() {
           ...profileData4,
           coachPersona,
           workoutDurationMin: workoutDuration,
+          trackPerSet,
         }),
       });
       if (!res.ok) throw new Error();
-      setProfile((p) => p ? { ...p, coachPersona, workoutDurationMin: workoutDuration } : p);
+      setProfile((p) => p ? { ...p, coachPersona, workoutDurationMin: workoutDuration, trackPerSet } : p);
       setShowRegen(true);
       setRegenDone("");
     } catch {
@@ -320,7 +325,7 @@ export default function ProfilePage() {
     }
   };
 
-  const hasCoachChanges = profile && (coachPersona !== profile.coachPersona || workoutDuration !== profile.workoutDurationMin);
+  const hasCoachChanges = profile && (coachPersona !== profile.coachPersona || workoutDuration !== profile.workoutDurationMin || trackPerSet !== profile.trackPerSet);
 
   const hasFeatureChanges = profile && (wantsWorkouts !== profile.wantsWorkouts || wantsDiet !== profile.wantsDiet);
 
@@ -606,6 +611,26 @@ export default function ProfilePage() {
                 ))}
               </div>
               <p className="text-[10px] text-[#444] mt-1.5">How long you want each workout session to be</p>
+            </div>
+            <div>
+              <label className={labelClass}>Tracking</label>
+              <button
+                type="button"
+                onClick={() => setTrackPerSet(!trackPerSet)}
+                className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl border transition-all text-sm ${
+                  trackPerSet
+                    ? "border-[#00d4ff]/40 bg-[#00d4ff]/5 text-[#00d4ff]"
+                    : "border-[#2a2a2a] text-[#555] hover:border-[#333] hover:text-[#999]"
+                }`}
+              >
+                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                  trackPerSet ? "border-[#00d4ff] bg-[#00d4ff]" : "border-[#444]"
+                }`}>
+                  {trackPerSet && <Check className="h-3 w-3 text-black" />}
+                </div>
+                <span className="font-medium">Track weight & reps per set</span>
+              </button>
+              <p className="text-[10px] text-[#444] mt-1.5">Log separate weight/reps for each set instead of one entry per exercise</p>
             </div>
             {hasCoachChanges && (
               <button

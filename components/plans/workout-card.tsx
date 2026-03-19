@@ -11,12 +11,16 @@ interface WorkoutCardProps {
   planId: number;
   onRegenerate: () => Promise<void>;
   onContentChange?: (newContent: string) => void;
+  trackPerSet?: boolean;
 }
+
+type SetEntry = { weightKg: number | ""; reps: number | "" };
 
 type WeightEntry = {
   exercise: string;
   weightKg: number | "";
   reps: number | "";
+  sets?: SetEntry[];
 };
 
 interface DaySection {
@@ -98,6 +102,60 @@ function extractText(node: React.ReactNode): string {
   return "";
 }
 
+function NumericInput({
+  value,
+  onChange,
+  placeholder,
+  mode,
+  className,
+}: {
+  value: number | "";
+  onChange: (v: number | "") => void;
+  placeholder: string;
+  mode: "decimal" | "numeric";
+  className?: string;
+}) {
+  const [localValue, setLocalValue] = useState(String(value === "" ? "" : value));
+  const prevValue = useRef(value);
+
+  // Sync from parent only when the parent value actually changes (not from our own blur)
+  if (value !== prevValue.current) {
+    prevValue.current = value;
+    setLocalValue(String(value === "" ? "" : value));
+  }
+
+  return (
+    <input
+      type="text"
+      inputMode={mode}
+      placeholder={placeholder}
+      value={localValue}
+      onChange={(e) => {
+        const raw = e.target.value;
+        // Allow empty, digits, and one decimal point for weight
+        if (mode === "decimal" && /^[0-9]*\.?[0-9]*$/.test(raw)) {
+          setLocalValue(raw);
+        } else if (mode === "numeric" && /^[0-9]*$/.test(raw)) {
+          setLocalValue(raw);
+        }
+      }}
+      onBlur={() => {
+        if (localValue === "") {
+          prevValue.current = "";
+          onChange("");
+        } else {
+          const parsed = mode === "decimal" ? parseFloat(localValue) : parseInt(localValue, 10);
+          if (!isNaN(parsed)) {
+            prevValue.current = parsed;
+            onChange(parsed);
+          }
+        }
+      }}
+      className={className}
+    />
+  );
+}
+
 function DaySectionBlock({
   section,
   sectionIdx,
@@ -105,6 +163,8 @@ function DaySectionBlock({
   toggleExercise,
   weightEntries,
   onWeightChange,
+  onSetWeightChange,
+  trackPerSet,
   onSwapExercise,
   swappingKey,
   swapOptions,
@@ -117,6 +177,8 @@ function DaySectionBlock({
   toggleExercise: (key: string) => void;
   weightEntries: Record<string, WeightEntry>;
   onWeightChange: (key: string, exercise: string, field: "weightKg" | "reps", value: number | "") => void;
+  onSetWeightChange: (key: string, exercise: string, setIndex: number, field: "weightKg" | "reps", value: number | "", totalSets: number) => void;
+  trackPerSet: boolean;
   onSwapExercise: (key: string, exerciseName: string, dayHeader: string) => void;
   swappingKey: string | null;
   swapOptions: SwapOptions;
@@ -165,12 +227,15 @@ function DaySectionBlock({
           <tr {...props}>
             <th className="!pr-0 !pl-2 w-8"></th>
             {children}
-            {isExerciseTable && (
+            {isExerciseTable && !trackPerSet && (
               <>
                 <th className="text-xs font-medium text-[#555] !px-2 whitespace-nowrap">Actual Wt</th>
                 <th className="text-xs font-medium text-[#555] !px-2 whitespace-nowrap">Actual Reps</th>
                 <th className="w-8"></th>
               </>
+            )}
+            {isExerciseTable && trackPerSet && (
+              <th className="w-8"></th>
             )}
           </tr>
         );
@@ -186,59 +251,85 @@ function DaySectionBlock({
       const childArray = Array.isArray(children) ? children : [children];
       const exerciseName = entry?.exercise || extractText(childArray[0]) || "";
 
+      // Parse set count from "Sets" column (typically 2nd column, e.g. "3", "4x", "3-4")
+      const setsText = extractText(childArray[1]) || "";
+      const setsMatch = setsText.match(/(\d+)/);
+      const setCount = setsMatch ? parseInt(setsMatch[1], 10) : 3;
+
+      const inputClass = "w-16 px-1.5 py-1 text-xs bg-[#1a1a1a] border border-[#333] rounded text-white placeholder-[#555] focus:border-[#00d4ff] focus:outline-none";
+      const repsInputClass = "w-14 px-1.5 py-1 text-xs bg-[#1a1a1a] border border-[#333] rounded text-white placeholder-[#555] focus:border-[#00d4ff] focus:outline-none";
+
       return (
-        <tr
-          {...props}
-          className={`group cursor-pointer transition-opacity ${isDone ? "opacity-40" : ""} ${isLoading ? "animate-pulse" : ""} ${hasOptions ? "bg-[#00d4ff]/5" : ""}`}
-          onClick={() => toggleExercise(key)}
-        >
-          <td className="!pr-0 !pl-2 w-8 align-middle">
-            <input
-              type="checkbox"
-              checked={isDone}
-              onChange={() => toggleExercise(key)}
-              onClick={(e) => e.stopPropagation()}
-              className="h-4 w-4 rounded border-[#444] bg-[#1a1a1a] accent-[#00d4ff] cursor-pointer"
-            />
-          </td>
-          {children}
-          {isExerciseTable && (
-            <>
-              <td className="!px-1 align-middle" onClick={(e) => e.stopPropagation()}>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  placeholder="kg"
-                  value={entry?.weightKg ?? ""}
-                  onChange={(e) => {
-                    const v = e.target.value === "" ? "" : parseFloat(e.target.value);
-                    onWeightChange(key, exerciseName, "weightKg", v);
-                  }}
-                  className="w-16 px-1.5 py-1 text-xs bg-[#1a1a1a] border border-[#333] rounded text-white placeholder-[#555] focus:border-[#00d4ff] focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                />
-              </td>
-              <td className="!px-1 align-middle" onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center gap-1">
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    placeholder="reps"
-                    value={entry?.reps ?? ""}
-                    onChange={(e) => {
-                      const v = e.target.value === "" ? "" : parseInt(e.target.value, 10);
-                      onWeightChange(key, exerciseName, "reps", v);
-                    }}
-                    className="w-14 px-1.5 py-1 text-xs bg-[#1a1a1a] border border-[#333] rounded text-white placeholder-[#555] focus:border-[#00d4ff] focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        <>
+          <tr
+            {...props}
+            className={`group cursor-pointer transition-opacity ${isDone ? "opacity-40" : ""} ${isLoading ? "animate-pulse" : ""} ${hasOptions ? "bg-[#00d4ff]/5" : ""}`}
+            onClick={() => toggleExercise(key)}
+          >
+            <td className="!pr-0 !pl-2 w-8 align-middle">
+              <input
+                type="checkbox"
+                checked={isDone}
+                onChange={() => toggleExercise(key)}
+                onClick={(e) => e.stopPropagation()}
+                className="h-4 w-4 rounded border-[#444] bg-[#1a1a1a] accent-[#00d4ff] cursor-pointer"
+              />
+            </td>
+            {children}
+            {isExerciseTable && !trackPerSet && (
+              <>
+                <td className="!px-1 align-middle" onClick={(e) => e.stopPropagation()}>
+                  <NumericInput
+                    value={entry?.weightKg ?? ""}
+                    onChange={(v) => onWeightChange(key, exerciseName, "weightKg", v)}
+                    placeholder="kg"
+                    mode="decimal"
+                    className={inputClass}
                   />
-                  {entry?.weightKg !== undefined && entry?.weightKg !== "" && entry?.reps !== undefined && entry?.reps !== "" && (
-                    <span className="text-[10px] text-[#00d4ff]/60 whitespace-nowrap">
-                      {Math.round(Number(entry.weightKg) * (1 + Number(entry.reps) / 30))}kg
-                    </span>
+                </td>
+                <td className="!px-1 align-middle" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center gap-1">
+                    <NumericInput
+                      value={entry?.reps ?? ""}
+                      onChange={(v) => onWeightChange(key, exerciseName, "reps", v)}
+                      placeholder="reps"
+                      mode="numeric"
+                      className={repsInputClass}
+                    />
+                    {entry?.weightKg !== undefined && entry?.weightKg !== "" && entry?.reps !== undefined && entry?.reps !== "" && (
+                      <span className="text-[10px] text-[#00d4ff]/60 whitespace-nowrap">
+                        {Math.round(Number(entry.weightKg) * (1 + Number(entry.reps) / 30))}kg
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td className="!px-1 align-middle" onClick={(e) => e.stopPropagation()}>
+                  {hasOptions ? (
+                    <button
+                      onClick={onCancelSwap}
+                      title="Cancel swap"
+                      className="p-1 rounded text-[#555] hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => onSwapExercise(key, exerciseName, section.header)}
+                      disabled={isLoading || !!swappingKey || !!swapOptions}
+                      title="Swap for a different exercise"
+                      className="p-1 rounded text-[#555] hover:text-[#00d4ff] hover:bg-[#00d4ff]/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {isLoading ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Shuffle className="h-3 w-3" />
+                      )}
+                    </button>
                   )}
-                </div>
-              </td>
+                </td>
+              </>
+            )}
+            {isExerciseTable && trackPerSet && (
               <td className="!px-1 align-middle" onClick={(e) => e.stopPropagation()}>
                 {hasOptions ? (
                   <button
@@ -263,9 +354,48 @@ function DaySectionBlock({
                   </button>
                 )}
               </td>
+            )}
+          </tr>
+          {isExerciseTable && trackPerSet && (
+            <>
+              {Array.from({ length: setCount }, (_, si) => {
+                const setEntry = entry?.sets?.[si];
+                return (
+                  <tr key={`${key}-set-${si}`} className={`${isDone ? "opacity-40" : ""}`}>
+                    <td></td>
+                    <td colSpan={2} className="!py-0.5 !pl-4">
+                      <span className="text-[10px] text-[#555] font-medium">Set {si + 1}</span>
+                    </td>
+                    <td className="!px-1 !py-0.5" colSpan={2} onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-1.5">
+                        <NumericInput
+                          value={setEntry?.weightKg ?? ""}
+                          onChange={(v) => onSetWeightChange(key, exerciseName, si, "weightKg", v, setCount)}
+                          placeholder="kg"
+                          mode="decimal"
+                          className={inputClass}
+                        />
+                        <NumericInput
+                          value={setEntry?.reps ?? ""}
+                          onChange={(v) => onSetWeightChange(key, exerciseName, si, "reps", v, setCount)}
+                          placeholder="reps"
+                          mode="numeric"
+                          className={repsInputClass}
+                        />
+                        {setEntry?.weightKg !== undefined && setEntry?.weightKg !== "" && setEntry?.reps !== undefined && setEntry?.reps !== "" && (
+                          <span className="text-[10px] text-[#00d4ff]/60 whitespace-nowrap">
+                            {Math.round(Number(setEntry.weightKg) * (1 + Number(setEntry.reps) / 30))}kg
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td></td>
+                  </tr>
+                );
+              })}
             </>
           )}
-        </tr>
+        </>
       );
     },
     td({ children, ...props }) {
@@ -379,7 +509,7 @@ function DaySectionBlock({
   );
 }
 
-export function WorkoutCard({ content, planId, onRegenerate, onContentChange }: WorkoutCardProps) {
+export function WorkoutCard({ content, planId, onRegenerate, onContentChange, trackPerSet = false }: WorkoutCardProps) {
   const completedKey = `workout-completed-${planId}`;
   const entriesKey = `workout-entries-${planId}`;
 
@@ -415,18 +545,32 @@ export function WorkoutCard({ content, planId, onRegenerate, onContentChange }: 
 
   // Debounced auto-save to server when weightEntries change
   useEffect(() => {
-    const entries = Object.values(weightEntries).filter(
-      (e) => e.exercise && e.weightKg !== "" && e.reps !== ""
-    );
-    if (entries.length === 0) return;
+    const hasAnyData = Object.values(weightEntries).some((e) => {
+      if (!e.exercise) return false;
+      if (e.sets && e.sets.some((s) => s.weightKg !== "" && s.reps !== "")) return true;
+      return e.weightKg !== "" && e.reps !== "";
+    });
+    if (!hasAnyData) return;
 
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     autoSaveTimerRef.current = setTimeout(async () => {
-      const liftingNotes = entries.map((e) => ({
-        exercise: e.exercise,
-        weightKg: Number(e.weightKg),
-        reps: Number(e.reps),
-      }));
+      const liftingNotes = Object.values(weightEntries)
+        .filter((e) => e.exercise)
+        .map((e) => {
+          if (e.sets && e.sets.some((s) => s.weightKg !== "" || s.reps !== "")) {
+            return {
+              exercise: e.exercise,
+              sets: e.sets
+                .filter((s) => s.weightKg !== "" && s.reps !== "")
+                .map((s) => ({ weightKg: Number(s.weightKg), reps: Number(s.reps) })),
+            };
+          }
+          if (e.weightKg !== "" && e.reps !== "") {
+            return { exercise: e.exercise, weightKg: Number(e.weightKg), reps: Number(e.reps) };
+          }
+          return null;
+        })
+        .filter(Boolean);
 
       try {
         const res = await fetch("/api/progress", {
@@ -498,19 +642,55 @@ export function WorkoutCard({ content, planId, onRegenerate, onContentChange }: 
     [entriesKey]
   );
 
+  const handleSetWeightChange = useCallback(
+    (key: string, exercise: string, setIndex: number, field: "weightKg" | "reps", value: number | "", totalSets: number) => {
+      setWeightEntries((prev) => {
+        const existing = prev[key] || { exercise, weightKg: "", reps: "" };
+        const sets = [...(existing.sets || Array.from({ length: totalSets }, () => ({ weightKg: "" as number | "", reps: "" as number | "" })))];
+        // Ensure array is long enough
+        while (sets.length < totalSets) {
+          sets.push({ weightKg: "", reps: "" });
+        }
+        sets[setIndex] = { ...sets[setIndex], [field]: value };
+        const next = {
+          ...prev,
+          [key]: { ...existing, exercise, sets },
+        };
+        localStorage.setItem(entriesKey, JSON.stringify(next));
+        return next;
+      });
+      setSaved(false);
+    },
+    [entriesKey]
+  );
+
   const handleSaveWorkout = async () => {
-    const entries = Object.values(weightEntries).filter(
-      (e) => e.exercise && e.weightKg !== "" && e.reps !== ""
-    );
-    if (entries.length === 0) return;
+    const hasAnyData = Object.values(weightEntries).some((e) => {
+      if (!e.exercise) return false;
+      if (e.sets && e.sets.some((s) => s.weightKg !== "" && s.reps !== "")) return true;
+      return e.weightKg !== "" && e.reps !== "";
+    });
+    if (!hasAnyData) return;
 
     setSaving(true);
     try {
-      const liftingNotes = entries.map((e) => ({
-        exercise: e.exercise,
-        weightKg: Number(e.weightKg),
-        reps: Number(e.reps),
-      }));
+      const liftingNotes = Object.values(weightEntries)
+        .filter((e) => e.exercise)
+        .map((e) => {
+          if (e.sets && e.sets.some((s) => s.weightKg !== "" || s.reps !== "")) {
+            return {
+              exercise: e.exercise,
+              sets: e.sets
+                .filter((s) => s.weightKg !== "" && s.reps !== "")
+                .map((s) => ({ weightKg: Number(s.weightKg), reps: Number(s.reps) })),
+            };
+          }
+          if (e.weightKg !== "" && e.reps !== "") {
+            return { exercise: e.exercise, weightKg: Number(e.weightKg), reps: Number(e.reps) };
+          }
+          return null;
+        })
+        .filter(Boolean);
 
       const res = await fetch("/api/progress", {
         method: "POST",
@@ -612,9 +792,11 @@ export function WorkoutCard({ content, planId, onRegenerate, onContentChange }: 
     setSwapOptions(null);
   }, []);
 
-  const hasEntries = Object.values(weightEntries).some(
-    (e) => e.exercise && e.weightKg !== "" && e.reps !== ""
-  );
+  const hasEntries = Object.values(weightEntries).some((e) => {
+    if (!e.exercise) return false;
+    if (e.sets && e.sets.some((s) => s.weightKg !== "" && s.reps !== "")) return true;
+    return e.weightKg !== "" && e.reps !== "";
+  });
 
   const cleaned = stripWarmUp(localContent);
   const sections = useMemo(() => parseDaySections(cleaned), [cleaned]);
@@ -667,6 +849,8 @@ export function WorkoutCard({ content, planId, onRegenerate, onContentChange }: 
             toggleExercise={toggleExercise}
             weightEntries={weightEntries}
             onWeightChange={handleWeightChange}
+            onSetWeightChange={handleSetWeightChange}
+            trackPerSet={trackPerSet}
             onSwapExercise={handleSwapExercise}
             swappingKey={swappingKey}
             swapOptions={swapOptions}
